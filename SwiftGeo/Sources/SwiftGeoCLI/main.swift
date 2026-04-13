@@ -35,35 +35,31 @@ func main() {
         let serial = moranPermutationTestSerial(
             z: z, weights: weights, nPermutations: nPerm, seed: seed
         )
-        printResult(serial, label: "Serial")
+        printResult(serial, label: "Serial", nPerm: nPerm)
 
         // --- Parallel ---
         print("\n[Parallel] Running \(nPerm) permutations...")
         let parallel = moranPermutationTest(
             z: z, weights: weights, nPermutations: nPerm, seed: seed
         )
-        printResult(parallel, label: "Parallel")
-        let cpuSpeedup = serial.elapsedSeconds / parallel.elapsedSeconds
-        print("  CPU parallel speedup: \(String(format: "%.2f", cpuSpeedup))x")
+        printResult(parallel, label: "Parallel", nPerm: nPerm)
+        print("  CPU parallel speedup: \(String(format: "%.2f", serial.elapsedSeconds / parallel.elapsedSeconds))x")
 
-        // --- Metal ---
-        print("\n[Metal] Running \(nPerm) permutations...")
+        // --- Metal (batched) ---
+        print("\n[Metal] Running \(nPerm) permutations (batched)...")
         if let metalResult = moranPermutationTestMetal(
             z: z, weights: weights,
-            nPermutations: nPerm, seed: UInt32(seed & 0xFFFFFFFF)
+            nPermutations: nPerm,
+            seed: UInt32(seed & 0xFFFFFFFF)
         ) {
-            printResult(metalResult, label: "Metal")
-            let metalSpeedup = serial.elapsedSeconds / metalResult.elapsedSeconds
-            let vsParallel   = parallel.elapsedSeconds / metalResult.elapsedSeconds
-            print("  Metal speedup vs serial:   \(String(format: "%.2f", metalSpeedup))x")
-            print("  Metal speedup vs parallel: \(String(format: "%.2f", vsParallel))x")
+            printResult(metalResult, label: "Metal", nPerm: nPerm)
+            print("  Metal speedup vs serial:   \(String(format: "%.2f", serial.elapsedSeconds / metalResult.elapsedSeconds))x")
+            print("  Metal speedup vs parallel: \(String(format: "%.2f", parallel.elapsedSeconds / metalResult.elapsedSeconds))x")
 
-            // Write Metal result as canonical output
             print("\nWriting Metal results to \(outPath)...")
             try writeResults(metalResult, to: outPath)
         } else {
-            print("  [Metal unavailable — falling back to parallel CPU result]")
-            print("\nWriting parallel results to \(outPath)...")
+            print("  [Metal unavailable — writing parallel CPU results]")
             try writeResults(parallel, to: outPath)
         }
 
@@ -75,8 +71,7 @@ func main() {
     }
 }
 
-func printResult(_ result: PermutationResult, label: String) {
-    let nPerm = result.nullDistribution.count
+func printResult(_ result: PermutationResult, label: String, nPerm: Int) {
     let throughput = Double(nPerm) / result.elapsedSeconds
     print("  Observed Moran's I : \(String(format: "%.6f", result.observed))")
     print("  p-value (2-sided)  : \(String(format: "%.6f", result.pValueTwoSided))")

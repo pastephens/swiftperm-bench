@@ -2,7 +2,7 @@
 """
 benchmark.py
 Run Moran's I permutation test across multiple dataset sizes.
-Compares NumPy, Numba (parallel), and Swift (serial, parallel, Metal).
+Compares NumPy, Numba (parallel), and Swift (serial, parallel, Metal batched).
 
 Usage:
   uv run python benchmark.py                          # Columbus only, Python
@@ -24,18 +24,6 @@ DATA_DIR    = Path(__file__).parent.parent / "data"
 RESULTS_DIR = Path(__file__).parent.parent / "results"
 N_PERM      = 99999
 SEED        = 12345
-
-# Metal scratch buffer limit: nPerm * n * 4 bytes <= 512MB
-METAL_SCRATCH_LIMIT_MB = 512
-
-
-def metal_safe(n: int, n_perm: int) -> bool:
-    scratch_mb = (n_perm * n * 4) / (1024 * 1024)
-    return scratch_mb <= METAL_SCRATCH_LIMIT_MB
-
-
-def metal_scratch_mb(n: int, n_perm: int) -> float:
-    return (n_perm * n * 4) / (1024 * 1024)
 
 
 # ---------------------------------------------------------------------------
@@ -150,7 +138,7 @@ def run_swift(swift_bin, z_path, w_path, out_path, n_perm, seed):
     cmd = [swift_bin,
            str(z_path), str(w_path), str(out_path),
            str(n_perm), str(seed)]
-    result = subprocess.run(cmd, check=True, capture_output=False)
+    subprocess.run(cmd, check=True, capture_output=False)
     return read_swift_results(out_path)
 
 
@@ -193,11 +181,13 @@ def benchmark_dataset(tag, z_path, w_path, n_perm, seed, swift_bin=None):
     n, nnz, rows, cols, values = read_sparse_weights(w_path)
     W = build_sparse_matrix(n, rows, cols, values)
 
-    scratch = metal_scratch_mb(n, n_perm)
-    metal_ok = metal_safe(n, n_perm)
-    print(f"  n={n:,}, nnz={nnz:,}  |  Metal scratch: {scratch:.0f}MB {'✓' if metal_ok else '✗ (skip)'}")
+    # Estimate Metal batch info for display
+    bytes_per_perm = n * 4
+    batch = min(n_perm, (512 * 1024 * 1024) // bytes_per_perm)
+    n_batches = (n_perm + batch - 1) // batch
+    batch_info = f"Metal: {n_batches} batch{'es' if n_batches > 1 else ''} of ≤{batch:,}"
+    print(f"  n={n:,}, nnz={nnz:,}  |  {batch_info}")
 
-    # results dict: label -> (observed, p_value, elapsed, note)
     results = {}
 
     # NumPy
@@ -210,17 +200,14 @@ def benchmark_dataset(tag, z_path, w_path, n_perm, seed, swift_bin=None):
         obs_nb, _, pval_nb, elapsed_nb = nb
         results["Numba (parallel)"] = (obs_nb, pval_nb, elapsed_nb, None)
 
-    # Swift
+    # Swift (Metal batched + CPU parallel fallback)
     if swift_bin:
         swift_out = RESULTS_DIR / f"swift_{tag}_null.bin"
         _, obs_sw, pval_sw, elapsed_sw, n_threads = run_swift(
             swift_bin, z_path, w_path, swift_out, n_perm, seed
         )
-        # Swift CLI now runs serial + parallel + Metal internally and writes
-        # the best available result. We label it based on Metal availability.
-        metal_label = f"Swift+Metal" if metal_ok else f"Swift parallel ({n_threads}t)"
-        note = None if metal_ok else "Metal skipped — scratch too large"
-        results[metal_label] = (obs_sw, pval_sw, elapsed_sw, note)
+        batch_note = f"{n_batches} Metal batch{'es' if n_batches > 1 else ''}" if n_batches > 1 else None
+        results["Swift+Metal (batched)"] = (obs_sw, pval_sw, elapsed_sw, batch_note)
 
     return results, n
 
@@ -254,8 +241,7 @@ def main():
                 f"synthetic_{n}_weights.bin"
             ))
 
-    print(f"\nRunning benchmarks: {n_perm:,} permutations each")
-    print(f"Metal scratch limit: {METAL_SCRATCH_LIMIT_MB}MB\n")
+    print(f"\nRunning benchmarks: {n_perm:,} permutations each\n")
 
     all_results = {}
 
@@ -279,7 +265,6 @@ def main():
             for k, v in results.items()
         }
 
-    # Save summary
     summary = {"n_permutations": n_perm, "datasets": all_results}
     with open(RESULTS_DIR / "summary.json", "w") as f:
         json.dump(summary, f, indent=2)
