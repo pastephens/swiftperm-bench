@@ -85,14 +85,18 @@ GPU-specific implementations. This confirms the gap the new work fills — the
 computational acceleration lineage has not been continued in the 8 years since
 the 2017 paper.
 
-### Related unpublished work by the author
+### Related work by the author: sparse-kernel-weights branch
 
-Separate unpublished work optimizing `libpysal/graph/_kernel.py` identified the
-same class of memory access pattern mismatch and solved it at the algorithmic
-level using KDTree sparse computation (21–185x speedup at n=1,000–10,000).
+A PR-ready fork of libpysal (`pastephens/libpysal`, branch `sparse-kernel-weights`,
+April 2026) optimizes `libpysal/graph/_kernel.py` using `KDTree.sparse_distance_matrix`
+for compact support kernels. Reported speedup: 20-735x. Status: 3 commits ahead
+of pysal/libpysal:main, ready to open as upstream PR.
+
 This work provides direct motivation for the coalescing-aware Metal shader
-discussed as future work, and could be published as a companion software note.
-See `notes.md` for the full analogy.
+discussed as future work — both solve the same structural memory access pattern
+mismatch. Ideally, open the PR before paper submission so it can be cited as
+a submitted or merged contribution rather than unpublished.
+See `notes.md` for the full analogy and suggested paper framing.
 
 ### Strongest related work sentence
 

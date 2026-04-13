@@ -137,62 +137,62 @@ observations together in memory could improve cache coherence for both CPU and G
 paths. This connects back to the 2013 paper's theme of data structure choices
 for spatial computation.
 
-### Connection to libpysal _kernel.py optimization work (unpublished)
+### Connection to pastephens/libpysal sparse-kernel-weights branch
 
-Prior unpublished work optimizing `libpysal/graph/_kernel.py` identified the same
-class of problem at the algorithmic level and solved it. The parallel is direct
-and strengthens the paper's discussion section.
+This is NOT the December 2025 pysal optimization work — it is a separate,
+recent contribution (April 10-11, 2026) to the actual upstream libpysal
+codebase, currently sitting in a fork as a PR-ready branch.
 
-**The kernel weights problem (solved):**
-Libpysal's kernel weight construction computed a full N×N pairwise distance matrix
-before applying the kernel function — O(N²) memory and compute even for compact
-support kernels (bisquare, boxcar) where only distances within the bandwidth are
-nonzero. The fix: use `KDTree.sparse_distance_matrix()` to compute only the
-distances that matter, then apply the kernel to the sparse result.
+**Repository:** https://github.com/pastephens/libpysal/tree/sparse-kernel-weights
+**Status:** 3 commits ahead of pysal/libpysal:main, ready to open as PR
+**Files changed:** `libpysal/graph/_kernel.py` (+62/-29), `pyproject.toml` (+8)
 
-Benchmarked speedups from that work:
-| n      | Bisquare kernel | Distance band |
-|--------|-----------------|---------------|
-| 1,000  | 21x             | 107x          |
-| 5,000  | 62x             | 52x           |
-| 10,000 | 185x            | 65x           |
+**What the branch does:**
+For kernels with compact support (bisquare, boxcar, triangular, cosine,
+parabolic/discrete) with a fixed numeric bandwidth and euclidean metric,
+uses `KDTree.sparse_distance_matrix` instead of building the full N×N
+dense distance matrix. Reduces memory from O(N²) to O(N * avg_neighbors).
 
-**The Metal permutation problem (open):**
-The Metal shader at large n performs irregular scatter-reads across the z vector
-for each sparse weight traversal — effectively the same structural mismatch:
-the algorithm was written for sequential CPU execution and is not restructured
-for the memory access model of the execution hardware.
+Commit message benchmark claim: **20-735x speedup** depending on dataset
+size and bandwidth.
 
-**The analogy:**
+The fast path is skipped (existing behaviour preserved) when:
+- kernel has infinite support (gaussian, exponential, identity)
+- bandwidth is None or 'auto' (full matrix needed to compute it)
+- metric is not euclidean (KDTree only supports euclidean)
+- k is provided (already uses a tree-based path)
 
-| Context | Problem | Fix applied | Speedup |
+**The structural parallel to Metal crossover is exact:**
+
+| Context | Problem | Fix | Status |
 |---|---|---|---|
-| libpysal kernel weights | O(N²) dense matrix, compact support | KDTree sparse computation | 21–185x |
-| Metal permutations, large n | Irregular scatter-reads, GPU cache thrashing | Not yet applied | Open |
+| `_kernel.py` compact kernels | Full N×N dense matrix, O(N²) memory | KDTree sparse (O(N·k)) | ✓ Fixed, 20-735x |
+| Metal permutations at large n | Irregular scatter-reads, cache thrashing | Coalescing-aware shader | Open |
 
-The fix that worked for kernel weights — restructure the computation to match
-the hardware's memory access model — is exactly the prescription for fixing
-Metal at large n. A coalescing-aware Metal shader would reorder the sparse weight
-traversal to group accesses by neighbor block, analogous to the KDTree approach
-grouping distance computations by spatial proximity.
+Both are the same class of problem: an algorithm written for a different
+execution model (dense CPU computation) running on hardware that requires
+a different memory access pattern to be efficient.
 
-**Suggested framing in the paper (Discussion section):**
+**Citation approach:**
+At submission time this branch will either be:
+1. Merged into libpysal main → cite as libpysal release notes / changelog
+2. Still a PR → cite as "submitted" with the GitHub PR URL
+3. Unpublished → cite as GitHub repository at specific commit SHA
 
-> Prior work optimizing libpysal's kernel weight construction demonstrated that
-> restructuring a spatial computation to match available memory access patterns
-> yields 21–185x speedups [cite: unpublished / GitHub]. The Metal crossover
-> observed here reflects the same phenomenon on GPU hardware: the current
-> permutation loop performs irregular scatter-reads that are poorly suited to
-> GPU cache architecture. A coalescing-aware implementation analogous to the
-> sparse KDTree approach would be expected to extend Metal's advantage to
-> larger n, and is a natural direction for future work.
+Option 1 is cleanest and most likely given the PR is nearly ready.
+Opening the PR before paper submission would be ideal.
 
-**Note on citation:** The kernel optimization work is currently unpublished
-(available at https://github.com/pastephens — check for repo). If it remains
-unpublished at submission time, it can be cited as a GitHub repository or
-described as "prior work by the author." Alternatively, a brief technical note
-or software paper on the libpysal optimizations could be submitted alongside
-this paper, creating a two-paper contribution.
+**Suggested framing in paper (Discussion section):**
+
+> A parallel optimization of libpysal's kernel weight construction
+> (pastephens/libpysal, branch sparse-kernel-weights) demonstrates that
+> replacing a dense O(N²) distance matrix with a sparse KDTree query
+> achieves 20-735x speedup for compact support kernels. The Metal crossover
+> observed here is the same structural problem on GPU hardware: the
+> permutation loop performs irregular scatter-reads across the z vector
+> that are poorly suited to the GPU's cache architecture. A coalescing-aware
+> Metal shader, analogous to the KDTree sparse approach, is a natural
+> direction for future work.
 
 ---
 
