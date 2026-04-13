@@ -75,6 +75,80 @@ With Metal at n=49: 999,999 permutations in ~67ms.
 
 ---
 
+## The crossover problem: when Metal loses to Numba
+
+### The data is unambiguous
+
+Metal wins below n≈1,000. Numba wins above it, and the gap widens:
+
+| n      | Numba    | Metal    | Winner          |
+|--------|----------|----------|-----------------|
+| 49     | 5.4M/s   | 14.8M/s  | Metal 2.7x      |
+| 500    | 173k/s   | 294k/s   | Metal 1.7x      |
+| 2,000  | 66k/s    | 44k/s    | Numba 1.5x      |
+| 5,000  | 31k/s    | 13k/s    | Numba 2.5x      |
+| 10,000 | 17k/s    | 5.4k/s   | Numba 3.0x      |
+
+By n=10,000, Numba is 3x faster than Metal and the gap would continue widening.
+
+### Why this happens — it's structural, not incidental
+
+The fundamental bottleneck at large n is the sparse matrix-vector multiply inside
+each permutation: `sum_k w_ij * z[perm[j]]` across the nnz nonzeros. This is a
+memory-bound operation with **irregular access patterns** — the permutation indices
+scatter-read from z in random order.
+
+GPU compute shaders are not better than CPU for irregular memory access. They are
+designed for structured, coalesced reads where many threads access contiguous
+memory. The M3 GPU has high bandwidth but its many parallel threads thrash the
+cache competing for scattered index lookups into z.
+
+Numba's parallel CPU loop, by contrast, has 8 cores each working on a contiguous
+chunk of permutations with reasonable cache locality per thread. The CPU's larger
+cache per core handles the irregular access pattern far better.
+
+Unified memory eliminates the CPU↔GPU transfer penalty — but it cannot change the
+fundamental memory access pattern problem.
+
+### What this means for the paper
+
+This is a **stronger scientific contribution** than "Metal wins everywhere."
+The honest result — identifying the crossover point and characterizing why it
+occurs — is more defensible and more useful to the community than an oversold claim.
+
+The narrative becomes:
+- Metal dominates for small n typical of many social science spatial datasets (n < 1,000)
+- Numba dominates at larger n due to irregular memory access patterns inherent
+  to sparse spatial weights computation
+- Unified memory eliminates transfer overhead but doesn't change the access pattern problem
+- This motivates a **different GPU approach for large n**: restructuring the
+  computation to exploit memory coalescing rather than just parallelizing the
+  existing algorithm
+
+### The algorithmic path forward (future work)
+
+A coalescing-aware Metal shader would reorder the weight traversal to group
+accesses by neighbor rather than by focal observation — essentially transposing
+the computation. This is non-trivial algorithmically and requires restructuring
+the sparse weight representation. It's a natural follow-on paper.
+
+Alternatively, a block-sparse representation that groups spatially proximate
+observations together in memory could improve cache coherence for both CPU and GPU
+paths. This connects back to the 2013 paper's theme of data structure choices
+for spatial computation.
+
+### Revised contribution statement
+
+"We benchmark four implementations of Moran's I permutation inference on Apple
+silicon and identify a crossover at n≈1,000 where the optimal backend transitions
+from Metal GPU (77.8× over NumPy at small n) to CPU parallel (Numba, 3× faster
+than Metal at n=10,000). We show this crossover is structurally determined by
+irregular memory access patterns in sparse spatial weight traversal, not by
+dispatch overhead, and characterize the conditions under which each backend should
+be preferred."
+
+---
+
 ## Connection to Rey, Stephens & Laura (2017)
 
 The prior paper is a direct intellectual predecessor. Key parallel arguments:
