@@ -8,13 +8,12 @@
 //   [Int32: n][Int32: nnz][Int32 x nnz: rows][Int32 x nnz: cols][Float64 x nnz: values]
 //
 // Format for null distribution output:
-//   [Int32: nPerm][Float64 x nPerm: values][Float64: observed][Float64: pValue][Float64: elapsed]
+//   [Int32: nPerm][Float64 x nPerm: null][Float64: observed][Float64: pValue][Float64: elapsed][Int32: nThreads]
 
 import Foundation
 
 public enum BinaryIOError: Error {
     case fileNotFound(String)
-    case readError(String)
     case writeError(String)
 }
 
@@ -52,15 +51,9 @@ public func readSparseWeights(from path: String) throws -> SparseWeights {
         var cols   = [Int32](repeating: 0, count: nnz)
         var values = [Double](repeating: 0, count: nnz)
 
-        for i in 0..<nnz {
-            rows[i] = ptr.loadUnaligned(fromByteOffset: offset, as: Int32.self); offset += 4
-        }
-        for i in 0..<nnz {
-            cols[i] = ptr.loadUnaligned(fromByteOffset: offset, as: Int32.self); offset += 4
-        }
-        for i in 0..<nnz {
-            values[i] = ptr.loadUnaligned(fromByteOffset: offset, as: Double.self); offset += 8
-        }
+        for i in 0..<nnz { rows[i]   = ptr.loadUnaligned(fromByteOffset: offset, as: Int32.self);  offset += 4 }
+        for i in 0..<nnz { cols[i]   = ptr.loadUnaligned(fromByteOffset: offset, as: Int32.self);  offset += 4 }
+        for i in 0..<nnz { values[i] = ptr.loadUnaligned(fromByteOffset: offset, as: Double.self); offset += 8 }
 
         return SparseWeights(rows: rows, cols: cols, values: values, n: n)
     }
@@ -71,22 +64,15 @@ public func readSparseWeights(from path: String) throws -> SparseWeights {
 public func writeResults(_ result: PermutationResult, to path: String) throws {
     var data = Data()
 
-    // nPerm
-    var nPerm = Int32(result.nullDistribution.count)
-    data.append(contentsOf: withUnsafeBytes(of: &nPerm) { Array($0) })
+    func appendInt32(_ v: Int32)  { var x = v; data.append(contentsOf: withUnsafeBytes(of: &x) { Array($0) }) }
+    func appendDouble(_ v: Double) { var x = v; data.append(contentsOf: withUnsafeBytes(of: &x) { Array($0) }) }
 
-    // null distribution
-    for var v in result.nullDistribution {
-        data.append(contentsOf: withUnsafeBytes(of: &v) { Array($0) })
-    }
-
-    // observed, pValue, elapsed
-    var obs  = result.observed
-    var pval = result.pValueTwoSided
-    var elapsed = result.elapsedSeconds
-    data.append(contentsOf: withUnsafeBytes(of: &obs)     { Array($0) })
-    data.append(contentsOf: withUnsafeBytes(of: &pval)    { Array($0) })
-    data.append(contentsOf: withUnsafeBytes(of: &elapsed) { Array($0) })
+    appendInt32(Int32(result.nullDistribution.count))
+    result.nullDistribution.forEach { appendDouble($0) }
+    appendDouble(result.observed)
+    appendDouble(result.pValueTwoSided)
+    appendDouble(result.elapsedSeconds)
+    appendInt32(Int32(result.nThreads))
 
     guard FileManager.default.createFile(atPath: path, contents: data) else {
         throw BinaryIOError.writeError(path)
