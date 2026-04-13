@@ -73,20 +73,95 @@ At n=5,000, Swift parallel achieves ~34,000 perm/s.
 
 With Metal at n=49: 999,999 permutations in ~67ms.
 
+---
+
+## Connection to Rey, Stephens & Laura (2017)
+
+The prior paper is a direct intellectual predecessor. Key parallel arguments:
+
+### Structural parallel
+
+Rey et al. (2017) studied the **speed/accuracy tradeoff in optimal map classification**
+(Fisher-Jenks) in big data settings, using Monte Carlo simulation to quantify when
+sampling-based approximations are acceptable substitutes for full enumeration.
+
+This work studies the **speed/feasibility tradeoff in permutation inference** (Moran's I)
+across hardware backends, quantifying when GPU/Swift acceleration enables full
+enumeration at scales where Python forces suboptimal permutation counts.
+
+Both papers are fundamentally about: *when does the computational constraint force
+a methodological compromise, and how can that constraint be lifted?*
+
+### Specific technical parallels
+
+**Spatial autocorrelation as a confounding factor:**
+Rey et al. showed that spatial dependence (ρ) directly impacts classification accuracy
+via effective sample size reduction. The same issue applies here — spatially
+autocorrelated data affects the power of permutation tests, which is one argument
+for *more* permutations (not fewer) when ρ is high. Our synthetic datasets vary
+spatial autocorrelation, which sets up this connection naturally.
+
+**Hardware context as a constraint:**
+Rey et al. used an MPI cluster (dual quad-core Xeon, 24GB, Infiniband) as their
+compute environment and noted memory as the binding constraint for Fisher-Jenks
+at large n. This paper uses a consumer Apple M3 laptop and shows that unified
+memory GPU compute changes the feasibility frontier for a different class of
+spatial computation. Nice narrative arc: cluster → laptop, 2013 → 2025.
+
+**Monte Carlo simulation design:**
+Rey et al. ran 1,024 realizations per parameter combination across a grid of
+n × ρ × k × sample_size values. Our benchmark runs 99,999 permutations per
+implementation per dataset size. The methodological lineage (simulation-based
+evaluation of spatial computational methods) is direct.
+
+**PySAL as the reference implementation:**
+Rey et al. used PySAL's serial Fisher-Jenks as the baseline. This work uses
+esda/libpysal's permutation test as the baseline. Same ecosystem, same
+reference software community.
+
+### Key citation sentence for introduction
+
+Something like: "Building on earlier work examining computational tradeoffs in
+spatial classification [Rey et al. 2017], this paper investigates whether
+modern Apple silicon GPU compute can remove the feasibility constraints that
+currently limit permutation-based spatial inference at research-relevant
+dataset sizes."
+
+### What's different (important to articulate)
+
+Rey et al. asked: "given a fixed hardware budget, how much accuracy do you
+sacrifice by sampling?" — the answer guided algorithm selection.
+
+This paper asks: "given a fixed algorithm, how much does hardware matter?" —
+the answer guides platform selection and informs what's now computationally
+routine vs. what still requires compromise.
+
+---
+
 ## Suggested paper structure (rough)
 
-1. Introduction — the computational barrier to rigorous permutation inference
-2. Background — Moran's I, permutation testing, Apple silicon architecture
-3. Implementation — four implementations (NumPy, Numba, Swift CPU, Swift Metal)
-4. Results — benchmark across n=49 to n=10,000
-5. Discussion — iteration at scale as the primary contribution; p-value
-   precision as secondary; limitations (batch dispatch at large n, single
-   statistic, macOS only)
-6. Conclusion — path to generalisation (arbitrary statistics, Python binding,
-   R package)
+1. **Introduction** — the computational barrier to rigorous permutation inference;
+   brief connection to prior work on computational tradeoffs in spatial analysis
+2. **Background** — Moran's I, permutation testing, Apple silicon architecture
+   and unified memory; why GPU matters differently here than on discrete GPU systems
+3. **Implementation** — four implementations (NumPy, Numba, Swift CPU, Swift Metal);
+   three Metal shader variants and their selection logic
+4. **Results** — benchmark across n=49 to n=10,000; throughput table;
+   crossover analysis (Metal vs CPU parallel)
+5. **Discussion** — iteration at scale as the primary contribution; p-value
+   precision as secondary; effect of spatial autocorrelation on when more
+   permutations matter; limitations (batch dispatch at large n, single statistic,
+   macOS only)
+6. **Conclusion** — path to generalisation (arbitrary statistics, Python binding,
+   R package); relevance to the broader spatial analytics ecosystem
+
+---
 
 ## Hardware context
 
 All results: Apple M3, 8GB unified memory, 8 CPU cores.
 Metal peak: 14.85M perm/s (77.8x over NumPy) at n=49, scratchless stack shader.
 Swift parallel peak: 349k perm/s at n=500 (4.5x over NumPy, 2.0x over Numba).
+
+Prior paper hardware: dual quad-core Intel Xeon 2.93GHz, 24GB shared memory,
+MPI cluster with Infiniband. Fisher-Jenks at n=15,625 took seconds per realization.
