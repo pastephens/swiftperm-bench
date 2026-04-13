@@ -103,7 +103,7 @@ There are now three papers in the lineage, not two:
    → The first paper: parallelizing spatial computation on CPU, desktop hardware.
 
 2. **Rey, Stephens & Laura (2017)** — *Sampling and full enumeration strategies
-   for Fisher-Jenks in big data settings*. Transactions in GIS. Cited by 32.
+   for Fisher-Jenks in big data settings*. Transactions in GIS. Cited by 32. BibTeX key: `Rey2017tgis`
    → The second paper: computational tradeoffs when full enumeration is infeasible.
 
 3. **Stephens (2026, this work)** — *swiftperm-bench*.
