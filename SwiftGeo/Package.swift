@@ -7,12 +7,17 @@ let package = Package(
         .macOS(.v13)
     ],
     targets: [
-        // Core library: Moran's I permutation via Accelerate
+        // Core library: Moran's I permutation via Accelerate + Metal
         .target(
             name: "SwiftGeo",
             path: "Sources/SwiftGeo",
+            resources: [
+                .process("MoranPermutation.metal")
+            ],
             linkerSettings: [
-                .linkedFramework("Accelerate")
+                .linkedFramework("Accelerate"),
+                .linkedFramework("Metal"),
+                .linkedFramework("Foundation")
             ]
         ),
         // CLI runner: reads binary fixtures, runs permutations, writes results

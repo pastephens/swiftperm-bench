@@ -2,7 +2,7 @@
 """
 benchmark.py
 Run Moran's I permutation test across multiple dataset sizes.
-Compares NumPy, Numba (parallel), and Swift (Accelerate, serial+parallel).
+Compares NumPy, Numba (parallel), and Swift (serial, parallel, Metal).
 
 Usage:
   uv run python benchmark.py                          # Columbus only, Python
@@ -24,6 +24,18 @@ DATA_DIR    = Path(__file__).parent.parent / "data"
 RESULTS_DIR = Path(__file__).parent.parent / "results"
 N_PERM      = 99999
 SEED        = 12345
+
+# Metal scratch buffer limit: nPerm * n * 4 bytes <= 512MB
+METAL_SCRATCH_LIMIT_MB = 512
+
+
+def metal_safe(n: int, n_perm: int) -> bool:
+    scratch_mb = (n_perm * n * 4) / (1024 * 1024)
+    return scratch_mb <= METAL_SCRATCH_LIMIT_MB
+
+
+def metal_scratch_mb(n: int, n_perm: int) -> float:
+    return (n_perm * n * 4) / (1024 * 1024)
 
 
 # ---------------------------------------------------------------------------
@@ -48,11 +60,11 @@ def read_sparse_weights(path: Path):
 
 def read_swift_results(path: Path):
     with open(path, "rb") as f:
-        n_perm   = struct.unpack("<i", f.read(4))[0]
-        null     = np.frombuffer(f.read(8 * n_perm), dtype=np.float64).copy()
-        observed = struct.unpack("<d", f.read(8))[0]
-        p_value  = struct.unpack("<d", f.read(8))[0]
-        elapsed  = struct.unpack("<d", f.read(8))[0]
+        n_perm    = struct.unpack("<i", f.read(4))[0]
+        null      = np.frombuffer(f.read(8 * n_perm), dtype=np.float64).copy()
+        observed  = struct.unpack("<d", f.read(8))[0]
+        p_value   = struct.unpack("<d", f.read(8))[0]
+        elapsed   = struct.unpack("<d", f.read(8))[0]
         n_threads = struct.unpack("<i", f.read(4))[0]
     return null, observed, p_value, elapsed, n_threads
 
@@ -135,8 +147,10 @@ def moran_perm_numba(z, rows, cols, values, n, n_perm=N_PERM, seed=SEED):
 # ---------------------------------------------------------------------------
 
 def run_swift(swift_bin, z_path, w_path, out_path, n_perm, seed):
-    cmd = [swift_bin, str(z_path), str(w_path), str(out_path), str(n_perm), str(seed)]
-    subprocess.run(cmd, check=True, capture_output=False)
+    cmd = [swift_bin,
+           str(z_path), str(w_path), str(out_path),
+           str(n_perm), str(seed)]
+    result = subprocess.run(cmd, check=True, capture_output=False)
     return read_swift_results(out_path)
 
 
@@ -144,58 +158,71 @@ def run_swift(swift_bin, z_path, w_path, out_path, n_perm, seed):
 # Reporting
 # ---------------------------------------------------------------------------
 
-def fmt_row(label, observed, p_value, elapsed, n_perm, baseline_elapsed=None):
-    throughput = n_perm / elapsed
-    speedup = f"{baseline_elapsed/elapsed:.1f}x" if baseline_elapsed else "—"
-    return (f"{label:<26} {observed:>10.6f} {p_value:>9.5f} "
-            f"{elapsed:>9.3f}  {throughput:>12,.0f}  {speedup:>6}")
+def fmt_throughput(n_perm, elapsed):
+    t = n_perm / elapsed
+    if t >= 1_000_000:
+        return f"{t/1_000_000:.2f}M/s"
+    elif t >= 1_000:
+        return f"{t/1_000:.0f}k/s"
+    return f"{t:.0f}/s"
 
 
-def print_table(rows, n_perm, dataset_label):
-    print(f"\n{'='*80}")
+def print_table(dataset_label, results, n_perm):
+    print(f"\n{'='*72}")
     print(f"  {dataset_label}  |  {n_perm:,} permutations")
-    print(f"{'='*80}")
-    print(f"{'Implementation':<26} {'Moran I':>10} {'p-value':>9} {'Time(s)':>9}  {'perm/s':>12}  {'vs NumPy':>6}")
-    print(f"{'-'*80}")
-    for row in rows:
-        print(row)
-    print(f"{'='*80}")
+    print(f"{'='*72}")
+    print(f"  {'Implementation':<28} {'Moran I':>10} {'p-value':>9} {'Time':>8}  {'perm/s':>10}  {'speedup':>8}")
+    print(f"  {'-'*68}")
+    baseline = None
+    for label, (observed, p_value, elapsed, note) in results.items():
+        if baseline is None:
+            baseline = elapsed
+        speedup = f"{baseline/elapsed:.1f}x" if label != "NumPy" else "—"
+        tp = fmt_throughput(n_perm, elapsed)
+        note_str = f"  [{note}]" if note else ""
+        print(f"  {label:<28} {observed:>10.6f} {p_value:>9.5f} {elapsed:>7.3f}s  {tp:>10}  {speedup:>8}{note_str}")
+    print(f"{'='*72}")
 
 
 # ---------------------------------------------------------------------------
 # Per-dataset benchmark
 # ---------------------------------------------------------------------------
 
-def benchmark_dataset(label, z_path, w_path, n_perm, seed, swift_bin=None):
+def benchmark_dataset(tag, z_path, w_path, n_perm, seed, swift_bin=None):
     z = read_z_vector(z_path)
     n, nnz, rows, cols, values = read_sparse_weights(w_path)
     W = build_sparse_matrix(n, rows, cols, values)
 
-    print(f"\n  n={n:,}, nnz={nnz:,}")
+    scratch = metal_scratch_mb(n, n_perm)
+    metal_ok = metal_safe(n, n_perm)
+    print(f"  n={n:,}, nnz={nnz:,}  |  Metal scratch: {scratch:.0f}MB {'✓' if metal_ok else '✗ (skip)'}")
+
+    # results dict: label -> (observed, p_value, elapsed, note)
     results = {}
 
     # NumPy
-    obs_np, _, pval_np, elapsed_np = moran_perm_numpy(z, W, n_perm=n_perm, seed=seed)
-    results["NumPy"] = (obs_np, pval_np, elapsed_np)
-    print(f"    NumPy:  {elapsed_np:.3f}s  ({n_perm/elapsed_np:,.0f} perm/s)")
+    obs, _, pval, elapsed = moran_perm_numpy(z, W, n_perm=n_perm, seed=seed)
+    results["NumPy"] = (obs, pval, elapsed, None)
 
     # Numba
     nb = moran_perm_numba(z, rows, cols, values, n, n_perm=n_perm, seed=seed)
     if nb:
         obs_nb, _, pval_nb, elapsed_nb = nb
-        results["Numba (parallel)"] = (obs_nb, pval_nb, elapsed_nb)
-        print(f"    Numba:  {elapsed_nb:.3f}s  ({n_perm/elapsed_nb:,.0f} perm/s)")
+        results["Numba (parallel)"] = (obs_nb, pval_nb, elapsed_nb, None)
 
     # Swift
     if swift_bin:
-        swift_out = RESULTS_DIR / f"swift_{label}_null.bin"
+        swift_out = RESULTS_DIR / f"swift_{tag}_null.bin"
         _, obs_sw, pval_sw, elapsed_sw, n_threads = run_swift(
             swift_bin, z_path, w_path, swift_out, n_perm, seed
         )
-        results[f"Swift parallel ({n_threads}t)"] = (obs_sw, pval_sw, elapsed_sw)
-        print(f"    Swift:  {elapsed_sw:.3f}s  ({n_perm/elapsed_sw:,.0f} perm/s)")
+        # Swift CLI now runs serial + parallel + Metal internally and writes
+        # the best available result. We label it based on Metal availability.
+        metal_label = f"Swift+Metal" if metal_ok else f"Swift parallel ({n_threads}t)"
+        note = None if metal_ok else "Metal skipped — scratch too large"
+        results[metal_label] = (obs_sw, pval_sw, elapsed_sw, note)
 
-    return results
+    return results, n
 
 
 # ---------------------------------------------------------------------------
@@ -205,72 +232,55 @@ def benchmark_dataset(label, z_path, w_path, n_perm, seed, swift_bin=None):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--swift-bin", type=str, default=None)
-    parser.add_argument("--synthetic", action="store_true",
-                        help="Include synthetic datasets at multiple scales")
+    parser.add_argument("--synthetic", action="store_true")
     parser.add_argument("--n-perm", type=int, default=N_PERM)
     args = parser.parse_args()
 
     n_perm = args.n_perm
     RESULTS_DIR.mkdir(exist_ok=True)
 
-    # Suppress Swift stdout from cluttering our output
-    # (Swift prints its own progress; we capture it separately if needed)
-
-    datasets = [("Columbus (n=49)", "columbus_z.bin", "columbus_weights.bin")]
+    datasets = [("Columbus_n49", "Columbus (n=49)", "columbus_z.bin", "columbus_weights.bin")]
 
     if args.synthetic:
         with open(DATA_DIR / "synthetic_meta.json") as f:
             meta = json.load(f)
         for n_str in sorted(meta.keys(), key=int):
             n = int(n_str)
+            tag = f"Synthetic_KNN_n{n}"
             datasets.append((
+                tag,
                 f"Synthetic KNN (n={n:,})",
                 f"synthetic_{n}_z.bin",
                 f"synthetic_{n}_weights.bin"
             ))
 
-    all_results = {}
     print(f"\nRunning benchmarks: {n_perm:,} permutations each")
+    print(f"Metal scratch limit: {METAL_SCRATCH_LIMIT_MB}MB\n")
 
-    for label, z_file, w_file in datasets:
-        print(f"\n{'─'*60}")
-        print(f"  Dataset: {label}")
+    all_results = {}
+
+    for tag, label, z_file, w_file in datasets:
         z_path = DATA_DIR / z_file
         w_path = DATA_DIR / w_file
         if not z_path.exists():
-            print(f"  [skipping — fixtures not found, run generate_synthetic.py]")
+            print(f"\n[{label}] fixtures not found — run generate_synthetic.py")
             continue
 
-        results = benchmark_dataset(
-            label.replace(" ", "_").replace(",", "").replace("(", "").replace(")", ""),
-            z_path, w_path, n_perm, SEED,
-            swift_bin=args.swift_bin
+        print(f"\n{'─'*72}")
+        print(f"  Dataset: {label}")
+        results, n = benchmark_dataset(
+            tag, z_path, w_path, n_perm, SEED, swift_bin=args.swift_bin
         )
-        all_results[label] = results
-
-        # Print table for this dataset
-        baseline = results["NumPy"][2]
-        rows = [fmt_row(k, v[0], v[1], v[2], n_perm,
-                        baseline if k != "NumPy" else None)
-                for k, v in results.items()]
-        print_table(rows, n_perm, label)
-
-    # Save full summary
-    summary = {
-        "n_permutations": n_perm,
-        "datasets": {
-            label: {
-                impl: {
-                    "observed": v[0],
-                    "p_value": v[1],
-                    "elapsed_s": v[2],
-                    "throughput_perm_s": n_perm / v[2]
-                }
-                for impl, v in results.items()
-            }
-            for label, results in all_results.items()
+        print_table(label, results, n_perm)
+        all_results[label] = {
+            k: {"observed": v[0], "p_value": v[1],
+                "elapsed_s": v[2], "throughput_perm_s": n_perm / v[2],
+                "note": v[3]}
+            for k, v in results.items()
         }
-    }
+
+    # Save summary
+    summary = {"n_permutations": n_perm, "datasets": all_results}
     with open(RESULTS_DIR / "summary.json", "w") as f:
         json.dump(summary, f, indent=2)
     print(f"\nResults saved to {RESULTS_DIR}/summary.json")

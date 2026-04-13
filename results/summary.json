@@ -5,100 +5,23 @@
       "NumPy": {
         "observed": 0.18009311431727298,
         "p_value": 0.04918049180491805,
-        "elapsed_s": 0.521056249999674,
-        "throughput_perm_s": 191915.9399778096
+        "elapsed_s": 0.5425252499990165,
+        "throughput_perm_s": 184321.37490408286,
+        "note": null
       },
       "Numba (parallel)": {
         "observed": 0.18009311431727298,
         "p_value": 0.04737047370473705,
-        "elapsed_s": 0.018673417000172776,
-        "throughput_perm_s": 5355152.728559254
+        "elapsed_s": 0.021198499998718034,
+        "throughput_perm_s": 4717267.73149267,
+        "note": null
       },
-      "Swift parallel (8t)": {
+      "Swift+Metal": {
         "observed": 0.180093114317273,
-        "p_value": 0.04883048830488305,
-        "elapsed_s": 0.02916407585144043,
-        "throughput_perm_s": 3428841.7198400954
-      }
-    },
-    "Synthetic KNN (n=500)": {
-      "NumPy": {
-        "observed": 0.5082100501566094,
-        "p_value": 0.0,
-        "elapsed_s": 1.284014124999885,
-        "throughput_perm_s": 77879.98438101991
-      },
-      "Numba (parallel)": {
-        "observed": 0.5082100501566086,
-        "p_value": 0.0,
-        "elapsed_s": 0.6187498749986844,
-        "throughput_perm_s": 161614.5781042988
-      },
-      "Swift parallel (8t)": {
-        "observed": 0.5082100501566092,
-        "p_value": 0.0,
-        "elapsed_s": 0.2798680067062378,
-        "throughput_perm_s": 357307.7222255115
-      }
-    },
-    "Synthetic KNN (n=2,000)": {
-      "NumPy": {
-        "observed": 0.5141519421164689,
-        "p_value": 0.0,
-        "elapsed_s": 3.996128291999412,
-        "throughput_perm_s": 25023.971377547234
-      },
-      "Numba (parallel)": {
-        "observed": 0.5141519421164682,
-        "p_value": 0.0,
-        "elapsed_s": 1.451507166999363,
-        "throughput_perm_s": 68893.21821725726
-      },
-      "Swift parallel (8t)": {
-        "observed": 0.5141519421164689,
-        "p_value": 0.0,
-        "elapsed_s": 1.0795890092849731,
-        "throughput_perm_s": 92626.91555764423
-      }
-    },
-    "Synthetic KNN (n=5,000)": {
-      "NumPy": {
-        "observed": 0.5307683704533364,
-        "p_value": 0.0,
-        "elapsed_s": 9.248075083000003,
-        "throughput_perm_s": 10812.952868842962
-      },
-      "Numba (parallel)": {
-        "observed": 0.5307683704533394,
-        "p_value": 0.0,
-        "elapsed_s": 3.428210541000226,
-        "throughput_perm_s": 29169.445342999257
-      },
-      "Swift parallel (8t)": {
-        "observed": 0.5307683704533365,
-        "p_value": 0.0,
-        "elapsed_s": 2.7372429370880127,
-        "throughput_perm_s": 36532.74564894225
-      }
-    },
-    "Synthetic KNN (n=10,000)": {
-      "NumPy": {
-        "observed": 0.5315491790191447,
-        "p_value": 0.0,
-        "elapsed_s": 17.583473167000193,
-        "throughput_perm_s": 5687.101692040755
-      },
-      "Numba (parallel)": {
-        "observed": 0.5315491790191437,
-        "p_value": 0.0,
-        "elapsed_s": 6.151482749999559,
-        "throughput_perm_s": 16256.080698593712
-      },
-      "Swift parallel (8t)": {
-        "observed": 0.5315491790191447,
-        "p_value": 0.0,
-        "elapsed_s": 5.83632493019104,
-        "throughput_perm_s": 17133.898677009875
+        "p_value": 0.01880018800188002,
+        "elapsed_s": 0.011808991432189941,
+        "throughput_perm_s": 8468039.000131233,
+        "note": null
       }
     }
   }
