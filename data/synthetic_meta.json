@@ -1,0 +1,30 @@
+{
+  "500": {
+    "n": 500,
+    "k": 8,
+    "nnz": 4000,
+    "weights_type": "KNN k=8, row-standardized",
+    "reference_morans_i": 0.5082100501566094
+  },
+  "2000": {
+    "n": 2000,
+    "k": 8,
+    "nnz": 16000,
+    "weights_type": "KNN k=8, row-standardized",
+    "reference_morans_i": 0.5141519421164688
+  },
+  "5000": {
+    "n": 5000,
+    "k": 8,
+    "nnz": 40000,
+    "weights_type": "KNN k=8, row-standardized",
+    "reference_morans_i": 0.5307683704533364
+  },
+  "10000": {
+    "n": 10000,
+    "k": 8,
+    "nnz": 80000,
+    "weights_type": "KNN k=8, row-standardized",
+    "reference_morans_i": 0.5315491790191447
+  }
+}
