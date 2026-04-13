@@ -1,0 +1,227 @@
+% figures.tex
+% TikZ/PGFPlots figures for swiftperm-bench paper.
+% Compile with: pdflatex figures.tex
+%
+% Requires packages: pgfplots, pgfplotstable, booktabs, xcolor
+% PGFPlots compat: 1.18+
+
+\documentclass[12pt]{article}
+\usepackage{pgfplots}
+\usepackage{pgfplotstable}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{geometry}
+\geometry{margin=1in}
+
+\pgfplotsset{compat=1.18}
+
+% --- Color palette (matches Claude.ai widget) ---
+\definecolor{clgray}{HTML}{73726C}    % NumPy
+\definecolor{clteal}{HTML}{1D9E75}    % Numba parallel
+\definecolor{clblue}{HTML}{3266AD}    % Swift+Metal
+
+% ---------------------------------------------------------------------------
+% Data tables
+% ---------------------------------------------------------------------------
+
+% Throughput in thousands of perm/s (log scale friendly)
+\pgfplotstableread[col sep=comma]{
+  label,          numpy,    numba,    metal
+  {n=49},         190.8,    5399.4,   14845.4
+  {n=500},        76.7,     172.7,    294.3
+  {n=2{,}000},    24.7,     65.7,     44.0
+  {n=5{,}000},    10.8,     31.3,     12.7
+  {n=10{,}000},   5.7,      16.6,     5.4
+}\throughputdata
+
+% Speedup over NumPy
+\pgfplotstableread[col sep=comma]{
+  label,          numba,   metal
+  {n=49},         28.3,    77.8
+  {n=500},        2.2,     3.8
+  {n=2{,}000},    2.7,     1.8
+  {n=5{,}000},    2.9,     1.2
+  {n=10{,}000},   2.9,     0.9
+}\speedupdata
+
+\begin{document}
+
+% ---------------------------------------------------------------------------
+% Figure 1: Throughput (log scale grouped bar chart)
+% ---------------------------------------------------------------------------
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  ybar,
+  ymode=log,
+  log origin=infty,
+  bar width=6pt,
+  width=0.92\textwidth,
+  height=7cm,
+  enlarge x limits=0.12,
+  ylabel={Throughput (perm/s, log scale)},
+  ylabel style={font=\small},
+  xtick=data,
+  xticklabels from table={\throughputdata}{label},
+  xticklabel style={font=\small},
+  yticklabel style={font=\small},
+  ytick={100, 1000, 10000, 100000, 1000000, 10000000},
+  yticklabels={100, 1k, 10k, 100k, 1M, 10M},
+  ymin=50, ymax=30000000,
+  grid=major,
+  grid style={dotted, gray!40},
+  legend style={
+    at={(0.98,0.98)},
+    anchor=north east,
+    font=\small,
+    draw=gray!50,
+    cells={anchor=west},
+  },
+  legend columns=1,
+  title style={font=\small\bfseries},
+  title={Moran's I permutation throughput by implementation and dataset size},
+]
+
+\addplot[fill=clgray,   draw=clgray!70!black]
+  table[x expr=\coordindex, y=numpy] {\throughputdata};
+
+\addplot[fill=clteal,   draw=clteal!70!black]
+  table[x expr=\coordindex, y=numba] {\throughputdata};
+
+\addplot[fill=clblue,   draw=clblue!70!black]
+  table[x expr=\coordindex, y=metal] {\throughputdata};
+
+\legend{NumPy (baseline), Numba parallel, Swift+Metal}
+
+\end{axis}
+\end{tikzpicture}
+\caption{
+  Permutation throughput (99,999 permutations) across implementations on Apple M3
+  (8\,GB unified memory, 8 CPU cores). Log scale. Metal uses a stack-allocated
+  scratchless shader at $n=49$, a single-pass uint32 index buffer for $n \leq 5{,}000$,
+  and a batched fallback for $n=10{,}000$.
+  Swift parallel (not shown) achieves 3.1M, 349k, 88k, 34k, 17k perm/s respectively.
+}
+\label{fig:throughput}
+\end{figure}
+
+\clearpage
+
+% ---------------------------------------------------------------------------
+% Figure 2: Speedup over NumPy (line chart)
+% ---------------------------------------------------------------------------
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.88\textwidth,
+  height=6.5cm,
+  xlabel={Dataset size $n$},
+  ylabel={Speedup over NumPy},
+  xlabel style={font=\small},
+  ylabel style={font=\small},
+  xticklabel style={font=\small},
+  yticklabel style={font=\small},
+  xtick={0,1,2,3,4},
+  xticklabels={49, 500, 2{,}000, 5{,}000, 10{,}000},
+  ymin=0, ymax=85,
+  ytick={0,10,20,30,40,50,60,70,80},
+  grid=major,
+  grid style={dotted, gray!40},
+  legend style={
+    at={(0.98,0.98)},
+    anchor=north east,
+    font=\small,
+    draw=gray!50,
+    cells={anchor=west},
+  },
+  title style={font=\small\bfseries},
+  title={Speedup over NumPy baseline},
+]
+
+% Numba dashed line
+\addplot[
+  color=clteal,
+  mark=square*,
+  mark size=2.5pt,
+  line width=1.2pt,
+  dashed,
+] table[x expr=\coordindex, y=numba] {\speedupdata};
+\addlegendentry{Numba parallel}
+
+% Metal solid line
+\addplot[
+  color=clblue,
+  mark=*,
+  mark size=2.5pt,
+  line width=1.2pt,
+] table[x expr=\coordindex, y=metal] {\speedupdata};
+\addlegendentry{Swift+Metal}
+
+% Reference line at 1x
+\addplot[
+  color=clgray,
+  line width=0.8pt,
+  dotted,
+  domain=0:4,
+] {1};
+\addlegendentry{NumPy (1$\times$)}
+
+% Annotate the peak
+\node[font=\tiny, clblue, anchor=south west]
+  at (axis cs: 0, 77.8) {77.8$\times$};
+
+\end{axis}
+\end{tikzpicture}
+\caption{
+  Speedup relative to NumPy baseline (99,999 permutations).
+  Swift+Metal achieves 77.8$\times$ at $n=49$ using the scratchless GPU shader,
+  converging toward NumPy performance as $n$ grows and batch dispatch overhead
+  dominates. Numba parallel provides consistent but modest speedup across all sizes.
+  Swift CPU parallel (not shown) achieves 16.2$\times$ at $n=49$, declining to
+  $\approx3\times$ at $n \geq 500$ — consistently outperforming Numba at scale.
+}
+\label{fig:speedup}
+\end{figure}
+
+\clearpage
+
+% ---------------------------------------------------------------------------
+% Table 1: Full results
+% ---------------------------------------------------------------------------
+
+\begin{table}[ht]
+\centering
+\small
+\caption{
+  Permutation throughput (perm/s) and speedup over NumPy baseline.
+  Apple M3, 8\,GB unified memory, 8 CPU cores, 99,999 permutations.
+  Metal shader variants: [S] scratchless stack ($n \leq 256$),
+  [I] single-pass uint32 index buffer ($n \leq 5{,}000$),
+  [B] batched fallback ($n = 10{,}000$).
+}
+\label{tab:results}
+\begin{tabular}{lrrrrr}
+\toprule
+& \multicolumn{5}{c}{Dataset size $n$} \\
+\cmidrule(lr){2-6}
+Implementation & 49 & 500 & 2,000 & 5,000 & 10,000 \\
+\midrule
+\multicolumn{6}{l}{\textit{Throughput (perm/s)}} \\[2pt]
+NumPy           & 191k  & 77k   & 25k   & 11k   & 5.7k  \\
+Numba parallel  & 5.4M  & 173k  & 66k   & 31k   & 17k   \\
+Swift parallel  & 3.1M  & 349k  & 88k   & 34k   & 17k   \\
+Swift+Metal [S/I/I/I/B] & \textbf{14.85M} & \textbf{294k} & 44k & 13k & 5.4k \\
+\midrule
+\multicolumn{6}{l}{\textit{Speedup over NumPy}} \\[2pt]
+Numba parallel  & 28.3$\times$ & 2.2$\times$ & 2.7$\times$ & 2.9$\times$ & 2.9$\times$ \\
+Swift parallel  & 16.2$\times$ & \textbf{4.5$\times$} & \textbf{3.5$\times$} & \textbf{3.1$\times$} & \textbf{2.9$\times$} \\
+Swift+Metal     & \textbf{77.8$\times$} & 3.8$\times$ & 1.8$\times$ & 1.2$\times$ & 0.9$\times$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\end{document}
