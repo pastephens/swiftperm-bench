@@ -85,6 +85,15 @@ GPU-specific implementations. This confirms the gap the new work fills — the
 computational acceleration lineage has not been continued in the 8 years since
 the 2017 paper.
 
+### Related unpublished work by the author
+
+Separate unpublished work optimizing `libpysal/graph/_kernel.py` identified the
+same class of memory access pattern mismatch and solved it at the algorithmic
+level using KDTree sparse computation (21–185x speedup at n=1,000–10,000).
+This work provides direct motivation for the coalescing-aware Metal shader
+discussed as future work, and could be published as a companion software note.
+See `notes.md` for the full analogy.
+
 ### Strongest related work sentence
 
 "While prior work has examined computational tradeoffs in spatial classification

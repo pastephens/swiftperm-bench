@@ -137,6 +137,65 @@ observations together in memory could improve cache coherence for both CPU and G
 paths. This connects back to the 2013 paper's theme of data structure choices
 for spatial computation.
 
+### Connection to libpysal _kernel.py optimization work (unpublished)
+
+Prior unpublished work optimizing `libpysal/graph/_kernel.py` identified the same
+class of problem at the algorithmic level and solved it. The parallel is direct
+and strengthens the paper's discussion section.
+
+**The kernel weights problem (solved):**
+Libpysal's kernel weight construction computed a full N×N pairwise distance matrix
+before applying the kernel function — O(N²) memory and compute even for compact
+support kernels (bisquare, boxcar) where only distances within the bandwidth are
+nonzero. The fix: use `KDTree.sparse_distance_matrix()` to compute only the
+distances that matter, then apply the kernel to the sparse result.
+
+Benchmarked speedups from that work:
+| n      | Bisquare kernel | Distance band |
+|--------|-----------------|---------------|
+| 1,000  | 21x             | 107x          |
+| 5,000  | 62x             | 52x           |
+| 10,000 | 185x            | 65x           |
+
+**The Metal permutation problem (open):**
+The Metal shader at large n performs irregular scatter-reads across the z vector
+for each sparse weight traversal — effectively the same structural mismatch:
+the algorithm was written for sequential CPU execution and is not restructured
+for the memory access model of the execution hardware.
+
+**The analogy:**
+
+| Context | Problem | Fix applied | Speedup |
+|---|---|---|---|
+| libpysal kernel weights | O(N²) dense matrix, compact support | KDTree sparse computation | 21–185x |
+| Metal permutations, large n | Irregular scatter-reads, GPU cache thrashing | Not yet applied | Open |
+
+The fix that worked for kernel weights — restructure the computation to match
+the hardware's memory access model — is exactly the prescription for fixing
+Metal at large n. A coalescing-aware Metal shader would reorder the sparse weight
+traversal to group accesses by neighbor block, analogous to the KDTree approach
+grouping distance computations by spatial proximity.
+
+**Suggested framing in the paper (Discussion section):**
+
+> Prior work optimizing libpysal's kernel weight construction demonstrated that
+> restructuring a spatial computation to match available memory access patterns
+> yields 21–185x speedups [cite: unpublished / GitHub]. The Metal crossover
+> observed here reflects the same phenomenon on GPU hardware: the current
+> permutation loop performs irregular scatter-reads that are poorly suited to
+> GPU cache architecture. A coalescing-aware implementation analogous to the
+> sparse KDTree approach would be expected to extend Metal's advantage to
+> larger n, and is a natural direction for future work.
+
+**Note on citation:** The kernel optimization work is currently unpublished
+(available at https://github.com/pastephens — check for repo). If it remains
+unpublished at submission time, it can be cited as a GitHub repository or
+described as "prior work by the author." Alternatively, a brief technical note
+or software paper on the libpysal optimizations could be submitted alongside
+this paper, creating a two-paper contribution.
+
+---
+
 ### Revised contribution statement
 
 "We benchmark four implementations of Moran's I permutation inference on Apple
