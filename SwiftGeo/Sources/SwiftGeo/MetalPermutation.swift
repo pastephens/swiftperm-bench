@@ -135,7 +135,13 @@ public class MetalMoranEngine {
     private let psoIndexed: MTLComputePipelineState      // any n, uint32 index buf
     private let psoBatched: MTLComputePipelineState      // fallback float scratch
 
-    static let maxMemoryBytes = 512 * 1024 * 1024        // 512MB per batch
+    // Use 40% of recommended working set — conservative enough to leave
+    // headroom for macOS and the CPU side of the benchmark on 8GB machines.
+    // Evaluated lazily per-device at runtime.
+    static func maxMemoryBytes(for device: MTLDevice) -> Int {
+        let recommended = device.recommendedMaxWorkingSetSize
+        return Int(Double(recommended) * 0.40)
+    }
 
     public init?() {
         guard let dev = MTLCreateSystemDefaultDevice(),
@@ -184,9 +190,9 @@ public class MetalMoranEngine {
 
     func selectMode(n: Int, nPerm: Int) -> ShaderMode {
         if n <= 256 { return .scratchless }
-        // Indexed: uint32 per element = 4 bytes — 4x smaller than float scratch
+        let maxBytes = MetalMoranEngine.maxMemoryBytes(for: device)
         let indexedBytes = nPerm * n * MemoryLayout<UInt32>.stride
-        if indexedBytes <= MetalMoranEngine.maxMemoryBytes { return .indexed }
+        if indexedBytes <= maxBytes { return .indexed }
         return .batched
     }
 
@@ -316,8 +322,8 @@ public class MetalMoranEngine {
         weights: SparseWeights, nPermutations: Int, seed: UInt32
     ) -> PermutationResult? {
         let n   = weights.n
-        let batch = max(1, MetalMoranEngine.maxMemoryBytes /
-                        (n * MemoryLayout<Float>.stride))
+        let maxBytes = MetalMoranEngine.maxMemoryBytes(for: device)
+        let batch = max(1, maxBytes / (n * MemoryLayout<Float>.stride))
         let nBatches = (nPermutations + batch - 1) / batch
         print("[Metal] Batched fallback: \(nBatches) batches of ≤\(batch)")
 

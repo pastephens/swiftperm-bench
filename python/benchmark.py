@@ -181,9 +181,10 @@ def benchmark_dataset(tag, z_path, w_path, n_perm, seed, swift_bin=None):
     n, nnz, rows, cols, values = read_sparse_weights(w_path)
     W = build_sparse_matrix(n, rows, cols, values)
 
-    # Estimate Metal batch info for display
+    # Estimate Metal batch info — assume 40% of 8GB (~3.2GB) for display
+    metal_budget = int(8 * 1024 * 1024 * 1024 * 0.40)
     bytes_per_perm = n * 4
-    batch = min(n_perm, (512 * 1024 * 1024) // bytes_per_perm)
+    batch = min(n_perm, metal_budget // bytes_per_perm)
     n_batches = (n_perm + batch - 1) // batch
     batch_info = f"Metal: {n_batches} batch{'es' if n_batches > 1 else ''} of ≤{batch:,}"
     print(f"  n={n:,}, nnz={nnz:,}  |  {batch_info}")
