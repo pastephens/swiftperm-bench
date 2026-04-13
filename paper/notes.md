@@ -92,6 +92,30 @@ enumeration at scales where Python forces suboptimal permutation counts.
 Both papers are fundamentally about: *when does the computational constraint force
 a methodological compromise, and how can that constraint be lifted?*
 
+### Three-paper lineage
+
+There are now three papers in the lineage, not two:
+
+1. **Rey, Anselin, Pahle, Kang & Stephens (2013)** — *Parallel optimal choropleth map
+   classification in PySAL*. IJGIS. Cited by 32.
+   "Refactoring a spatial analysis library to support parallelization... parallel
+   implementations of Fisher-Jenks using a multi-core, single desktop environment."
+   → The first paper: parallelizing spatial computation on CPU, desktop hardware.
+
+2. **Rey, Stephens & Laura (2017)** — *Sampling and full enumeration strategies
+   for Fisher-Jenks in big data settings*. Transactions in GIS. Cited by 32.
+   → The second paper: computational tradeoffs when full enumeration is infeasible.
+
+3. **Stephens (2026, this work)** — *swiftperm-bench*.
+   → The third paper: GPU acceleration of spatial inference on Apple silicon.
+
+The narrative arc is clean: CPU parallelism (2013) → sampling tradeoffs under
+computational constraints (2017) → GPU compute removes the constraints (2026).
+
+Note: The 2013 paper also has 32 citations and was published in IJGIS, the
+higher-prestige sibling journal to Transactions in GIS. This gives you two
+possible target venues with direct lineage.
+
 ### Specific technical parallels
 
 **Spatial autocorrelation as a confounding factor:**
