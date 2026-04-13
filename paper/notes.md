@@ -97,7 +97,7 @@ a methodological compromise, and how can that constraint be lifted?*
 There are now three papers in the lineage, not two:
 
 1. **Rey, Anselin, Pahle, Kang & Stephens (2013)** — *Parallel optimal choropleth map
-   classification in PySAL*. IJGIS. Cited by 32.
+   classification in PySAL*. IJGIS. Cited by 32. BibTeX key: `Rey01052013`
    "Refactoring a spatial analysis library to support parallelization... parallel
    implementations of Fisher-Jenks using a multi-core, single desktop environment."
    → The first paper: parallelizing spatial computation on CPU, desktop hardware.
