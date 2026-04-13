@@ -1,0 +1,24 @@
+{
+  "n_permutations": 99999,
+  "dataset": "Columbus OH (libpysal example)",
+  "results": {
+    "NumPy": {
+      "observed": 0.18009311431727298,
+      "p_value": 0.04918049180491805,
+      "elapsed_s": 0.5174216249997698,
+      "throughput_perm_s": 193264.05230945745
+    },
+    "Numba (parallel)": {
+      "observed": 0.18009311431727298,
+      "p_value": 0.04737047370473705,
+      "elapsed_s": 0.01859650000005786,
+      "throughput_perm_s": 5377302.180501109
+    },
+    "Swift (Accelerate)": {
+      "observed": 0.180093114317273,
+      "p_value": 0.04866048660486605,
+      "elapsed_s": 0.15642094612121582,
+      "throughput_perm_s": 639294.1768969191
+    }
+  }
+}

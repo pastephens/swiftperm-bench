@@ -1,0 +1,10 @@
+{
+  "dataset": "Columbus OH (libpysal example)",
+  "variable": "HOVAL (home values, standardized)",
+  "n": 49,
+  "nnz": 236,
+  "weights_type": "Queen contiguity, row-standardized",
+  "reference_morans_i": 0.180093114317273,
+  "z_mean": 1.4840736349581175e-16,
+  "z_std": 1.0
+}

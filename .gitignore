@@ -1,0 +1,29 @@
+# Swift build artifacts
+SwiftGeo/.build/
+SwiftGeo/*.resolved
+
+# Python virtual environment
+python/.venv/
+python/__pycache__/
+python/*.pyc
+python/hello.py
+
+# uv
+python/uv.lock
+
+# Benchmark results (generated, not source)
+results/numpy_null.npy
+results/numba_null.npy
+results/swift_null.bin
+
+# Keep summary.json in version control so results are tracked
+!results/summary.json
+
+# Data fixtures (generated from source data, reproducible)
+data/*.bin
+
+# Keep metadata
+!data/columbus_meta.json
+
+# macOS
+.DS_Store
