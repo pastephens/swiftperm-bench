@@ -5,22 +5,22 @@
       "NumPy": {
         "observed": 0.18009311431727298,
         "p_value": 0.04918049180491805,
-        "elapsed_s": 0.5191818749990489,
-        "throughput_perm_s": 192608.80399606246,
+        "elapsed_s": 0.5170618749998539,
+        "throughput_perm_s": 193398.5173438445,
         "note": null
       },
       "Numba (parallel)": {
         "observed": 0.18009311431727298,
         "p_value": 0.04737047370473705,
-        "elapsed_s": 0.017860250000012456,
-        "throughput_perm_s": 5598969.7792545045,
+        "elapsed_s": 0.018045625000013388,
+        "throughput_perm_s": 5541453.953516479,
         "note": null
       },
       "Swift+Metal (batched)": {
         "observed": 0.180093114317273,
         "p_value": 0.01880018800188002,
-        "elapsed_s": 0.09697699546813965,
-        "throughput_perm_s": 1031162.0762972925,
+        "elapsed_s": 0.008578062057495117,
+        "throughput_perm_s": 11657528.160760444,
         "note": null
       }
     },
@@ -28,22 +28,22 @@
       "NumPy": {
         "observed": 0.5082100501566094,
         "p_value": 0.0,
-        "elapsed_s": 1.2899608750012703,
-        "throughput_perm_s": 77520.95581961083,
+        "elapsed_s": 1.2774247079996712,
+        "throughput_perm_s": 78281.71740672621,
         "note": null
       },
       "Numba (parallel)": {
         "observed": 0.5082100501566086,
         "p_value": 0.0,
-        "elapsed_s": 0.5932283329984784,
-        "throughput_perm_s": 168567.47130494268,
+        "elapsed_s": 0.5984310419989924,
+        "throughput_perm_s": 167101.95992835605,
         "note": null
       },
       "Swift+Metal (batched)": {
         "observed": 0.5082100501566092,
         "p_value": 0.0,
-        "elapsed_s": 0.39348304271698,
-        "throughput_perm_s": 254138.01649370225,
+        "elapsed_s": 0.3100320100784302,
+        "throughput_perm_s": 322544.11399230297,
         "note": null
       }
     },
@@ -51,22 +51,22 @@
       "NumPy": {
         "observed": 0.5141519421164689,
         "p_value": 0.0,
-        "elapsed_s": 4.049490666999191,
-        "throughput_perm_s": 24694.216686293203,
+        "elapsed_s": 4.008498083001541,
+        "throughput_perm_s": 24946.75011173295,
         "note": null
       },
       "Numba (parallel)": {
         "observed": 0.5141519421164682,
         "p_value": 0.0,
-        "elapsed_s": 1.5200604170004226,
-        "throughput_perm_s": 65786.2009178101,
+        "elapsed_s": 1.478082749999885,
+        "throughput_perm_s": 67654.53422686097,
         "note": null
       },
       "Swift+Metal (batched)": {
         "observed": 0.5141519421164689,
         "p_value": 0.0,
-        "elapsed_s": 2.519990086555481,
-        "throughput_perm_s": 39682.29896359888,
+        "elapsed_s": 2.5138319730758667,
+        "throughput_perm_s": 39779.50836453223,
         "note": "2 Metal batches"
       }
     },
@@ -74,22 +74,22 @@
       "NumPy": {
         "observed": 0.5307683704533364,
         "p_value": 0.0,
-        "elapsed_s": 9.2747198750003,
-        "throughput_perm_s": 10781.88897861422,
+        "elapsed_s": 9.198711540999284,
+        "throughput_perm_s": 10870.979001167461,
         "note": null
       },
       "Numba (parallel)": {
         "observed": 0.5307683704533394,
         "p_value": 0.0,
-        "elapsed_s": 3.3660382500002015,
-        "throughput_perm_s": 29708.218556338157,
+        "elapsed_s": 3.2201437920011813,
+        "throughput_perm_s": 31054.203308683587,
         "note": null
       },
       "Swift+Metal (batched)": {
         "observed": 0.5307683704533365,
         "p_value": 0.0,
-        "elapsed_s": 9.999253988265991,
-        "throughput_perm_s": 10000.646059930838,
+        "elapsed_s": 9.100880980491638,
+        "throughput_perm_s": 10987.837354906047,
         "note": "4 Metal batches"
       }
     },
@@ -97,22 +97,22 @@
       "NumPy": {
         "observed": 0.5315491790191447,
         "p_value": 0.0,
-        "elapsed_s": 17.596000999999887,
-        "throughput_perm_s": 5683.05264360923,
+        "elapsed_s": 17.6699119169989,
+        "throughput_perm_s": 5659.281182030028,
         "note": null
       },
       "Numba (parallel)": {
         "observed": 0.5315491790191437,
         "p_value": 0.0,
-        "elapsed_s": 6.614291333000438,
-        "throughput_perm_s": 15118.626465858664,
+        "elapsed_s": 6.4174178749999555,
+        "throughput_perm_s": 15582.435482277317,
         "note": null
       },
       "Swift+Metal (batched)": {
         "observed": 0.5315491790191447,
         "p_value": 0.0,
-        "elapsed_s": 17.064581990242004,
-        "throughput_perm_s": 5860.03220337786,
+        "elapsed_s": 21.674661993980408,
+        "throughput_perm_s": 4613.635960171938,
         "note": "8 Metal batches"
       }
     }
