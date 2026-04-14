@@ -144,6 +144,7 @@ recent contribution (April 10-11, 2026) to the actual upstream libpysal
 codebase, currently sitting in a fork as a PR-ready branch.
 
 **Repository:** https://github.com/pastephens/libpysal/tree/sparse-kernel-weights
+**Local copy:** ~/Documents/GitHub/pysal_org/libpysal (branch: sparse-kernel-weights)
 **Status:** 3 commits ahead of pysal/libpysal:main, ready to open as PR
 **Files changed:** `libpysal/graph/_kernel.py` (+62/-29), `pyproject.toml` (+8)
 
