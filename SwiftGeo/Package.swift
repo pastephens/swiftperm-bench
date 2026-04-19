@@ -6,6 +6,9 @@ let package = Package(
     platforms: [
         .macOS(.v13)
     ],
+    products: [
+        .library(name: "SwiftGeoLib", type: .dynamic, targets: ["SwiftGeoLib"]),
+    ],
     targets: [
         // Core library: Moran's I permutation via Accelerate + Metal
         .target(
@@ -25,6 +28,12 @@ let package = Package(
             name: "SwiftGeoCLI",
             dependencies: ["SwiftGeo"],
             path: "Sources/SwiftGeoCLI"
+        ),
+        // Dynamic library: C-compatible bridge for Python ctypes binding
+        .target(
+            name: "SwiftGeoLib",
+            dependencies: ["SwiftGeo"],
+            path: "Sources/SwiftGeoLib"
         ),
     ]
 )

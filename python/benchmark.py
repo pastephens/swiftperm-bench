@@ -2,12 +2,12 @@
 """
 benchmark.py
 Run Moran's I permutation test across multiple dataset sizes.
-Compares NumPy, Numba (parallel), and Swift (serial, parallel, Metal batched).
+Compares NumPy, Numba (parallel), and Swift (serial, parallel, Metal).
 
 Usage:
   uv run python benchmark.py                          # Columbus only, Python
   uv run python benchmark.py --synthetic              # Add synthetic datasets
-  uv run python benchmark.py --synthetic --swift-bin ../SwiftGeo/.build/release/SwiftGeoCLI
+  uv run python benchmark.py --synthetic --dylib      # Include Swift/Metal rows
   uv run python benchmark.py --n-perm 9999            # Fewer permutations for quick runs
 """
 
@@ -131,15 +131,18 @@ def moran_perm_numba(z, rows, cols, values, n, n_perm=N_PERM, seed=SEED):
 
 
 # ---------------------------------------------------------------------------
-# Swift runner
+# Swift binding (ctypes, direct in-process)
 # ---------------------------------------------------------------------------
 
-def run_swift(swift_bin, z_path, w_path, out_path, n_perm, seed):
-    cmd = [swift_bin,
-           str(z_path), str(w_path), str(out_path),
-           str(n_perm), str(seed)]
-    subprocess.run(cmd, check=True, capture_output=False)
-    return read_swift_results(out_path)
+_swiftperm = None
+
+def _get_swiftperm(dylib_path=None):
+    global _swiftperm
+    if _swiftperm is not None:
+        return _swiftperm
+    from swiftperm import SwiftPerm
+    _swiftperm = SwiftPerm(dylib_path)
+    return _swiftperm
 
 
 # ---------------------------------------------------------------------------
@@ -176,18 +179,12 @@ def print_table(dataset_label, results, n_perm):
 # Per-dataset benchmark
 # ---------------------------------------------------------------------------
 
-def benchmark_dataset(tag, z_path, w_path, n_perm, seed, swift_bin=None):
+def benchmark_dataset(tag, z_path, w_path, n_perm, seed, dylib_path=None):
     z = read_z_vector(z_path)
     n, nnz, rows, cols, values = read_sparse_weights(w_path)
     W = build_sparse_matrix(n, rows, cols, values)
 
-    # Estimate Metal batch info — assume 40% of 8GB (~3.2GB) for display
-    metal_budget = int(8 * 1024 * 1024 * 1024 * 0.40)
-    bytes_per_perm = n * 4
-    batch = min(n_perm, metal_budget // bytes_per_perm)
-    n_batches = (n_perm + batch - 1) // batch
-    batch_info = f"Metal: {n_batches} batch{'es' if n_batches > 1 else ''} of ≤{batch:,}"
-    print(f"  n={n:,}, nnz={nnz:,}  |  {batch_info}")
+    print(f"  n={n:,}, nnz={nnz:,}")
 
     results = {}
 
@@ -201,14 +198,24 @@ def benchmark_dataset(tag, z_path, w_path, n_perm, seed, swift_bin=None):
         obs_nb, _, pval_nb, elapsed_nb = nb
         results["Numba (parallel)"] = (obs_nb, pval_nb, elapsed_nb, None)
 
-    # Swift (Metal batched + CPU parallel fallback)
-    if swift_bin:
-        swift_out = RESULTS_DIR / f"swift_{tag}_null.bin"
-        _, obs_sw, pval_sw, elapsed_sw, n_threads = run_swift(
-            swift_bin, z_path, w_path, swift_out, n_perm, seed
-        )
-        batch_note = f"{n_batches} Metal batch{'es' if n_batches > 1 else ''}" if n_batches > 1 else None
-        results["Swift+Metal (batched)"] = (obs_sw, pval_sw, elapsed_sw, batch_note)
+    # Swift: serial, parallel, Metal — via direct ctypes binding
+    if dylib_path is not False:
+        try:
+            sp = _get_swiftperm(dylib_path)
+
+            r = sp.perm_serial(z, rows, cols, values, n, n_perm=n_perm, seed=seed)
+            results["Swift serial"] = (r.observed, r.p_value, r.elapsed_seconds, None)
+
+            r = sp.perm_parallel(z, rows, cols, values, n, n_perm=n_perm, seed=seed)
+            results["Swift parallel"] = (r.observed, r.p_value, r.elapsed_seconds, None)
+
+            r = sp.perm_metal(z, rows, cols, values, n, n_perm=n_perm, seed=seed,
+                              fallback_to_parallel=False)
+            results["Swift+Metal"] = (r.observed, r.p_value, r.elapsed_seconds, None)
+        except RuntimeError as e:
+            results["Swift+Metal"] = (results.get("Swift parallel", (0,))[0], 0.0, 0.0, f"Metal N/A: {e}")
+        except OSError:
+            pass  # dylib not built — skip Swift rows silently
 
     return results, n
 
@@ -219,12 +226,16 @@ def benchmark_dataset(tag, z_path, w_path, n_perm, seed, swift_bin=None):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--swift-bin", type=str, default=None)
+    parser.add_argument("--dylib", type=str, nargs="?", const=True, default=None,
+                        help="Path to libSwiftGeoLib.dylib (omit path to use default location)")
+    parser.add_argument("--swift-bin", type=str, default=None,
+                        help="(deprecated) use --dylib instead")
     parser.add_argument("--synthetic", action="store_true")
     parser.add_argument("--n-perm", type=int, default=N_PERM)
     args = parser.parse_args()
 
     n_perm = args.n_perm
+    dylib_path = args.dylib if args.dylib is not True else None
     RESULTS_DIR.mkdir(exist_ok=True)
 
     datasets = [("Columbus_n49", "Columbus (n=49)", "columbus_z.bin", "columbus_weights.bin")]
@@ -256,7 +267,7 @@ def main():
         print(f"\n{'─'*72}")
         print(f"  Dataset: {label}")
         results, n = benchmark_dataset(
-            tag, z_path, w_path, n_perm, SEED, swift_bin=args.swift_bin
+            tag, z_path, w_path, n_perm, SEED, dylib_path=dylib_path
         )
         print_table(label, results, n_perm)
         all_results[label] = {

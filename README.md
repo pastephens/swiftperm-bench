@@ -89,11 +89,14 @@ swiftperm-bench/
 │       │   ├── MoranPermutation.metal      # GPU: three shader variants
 │       │   ├── MetalPermutation.swift      # GPU: Metal host + runtime shader selection
 │       │   └── BinaryIO.swift             # Binary fixture I/O
-│       └── SwiftGeoCLI/
-│           └── main.swift                 # CLI runner
+│       ├── SwiftGeoCLI/
+│       │   └── main.swift                 # CLI runner
+│       └── SwiftGeoLib/
+│           └── bridge.swift               # C bridge for Python ctypes binding
 ├── python/
 │   ├── generate_fixtures.py               # Columbus dataset → binary
 │   ├── generate_synthetic.py              # Synthetic KNN datasets
+│   ├── swiftperm.py                       # Python ctypes wrapper for libSwiftGeoLib.dylib
 │   └── benchmark.py                       # Python benchmarks + comparison
 ├── data/                                  # Binary fixtures (generated)
 └── results/                               # Benchmark output JSON
@@ -119,12 +122,47 @@ uv run python generate_synthetic.py
 cd ../SwiftGeo
 swift build -c release
 
-# 3. Run full benchmark
+# 3. Run full benchmark (Python only)
 cd ../python
-uv run python benchmark.py \
-  --synthetic \
-  --swift-bin ../SwiftGeo/.build/release/SwiftGeoCLI
+uv run python benchmark.py --synthetic
+
+# 3b. Run with Swift/Metal rows (requires step 2)
+uv run python benchmark.py --synthetic --dylib
 ```
+
+## Python bindings
+
+`python/swiftperm.py` provides a ctypes wrapper around `libSwiftGeoLib.dylib`, exposing all three backends directly from Python with no subprocess overhead and no file I/O.
+
+```python
+from swiftperm import SwiftPerm
+import numpy as np
+
+sp = SwiftPerm()  # auto-discovers .build/release/libSwiftGeoLib.dylib
+
+# z: float64 array, rows/cols: int32 COO indices, vals: float64 weights
+result = sp.perm_parallel(z, rows, cols, vals, n, n_perm=99999)
+print(result.observed, result.p_value, result.elapsed_seconds)
+
+# All three backends available individually:
+result = sp.perm_serial(z, rows, cols, vals, n)
+result = sp.perm_parallel(z, rows, cols, vals, n)
+result = sp.perm_metal(z, rows, cols, vals, n)   # falls back to parallel if Metal unavailable
+```
+
+**Design:** Python pre-allocates the null distribution buffer (`np.empty(n_perm, float64)`); Swift writes directly into it. No heap allocation or ownership transfer — Python always owns the memory. The only copy is a single `memcpy` of `nPerm × 8` bytes after computation completes.
+
+**Override dylib path:** `SWIFTGEO_DYLIB=/path/to/libSwiftGeoLib.dylib` or pass `dylib_path=` to `SwiftPerm()`.
+
+### Subprocess vs. ctypes overhead (M3, n=49, 9,999 permutations)
+
+| Approach | Wall time/call | vs. ctypes |
+|---|---|---|
+| Subprocess + file I/O (old) | 116ms | — |
+| ctypes `perm_parallel` (new) | 2.5ms | **47x faster** |
+| ctypes `perm_metal` (new) | 2.5ms | **46x faster** |
+
+The subprocess fixed cost (~114ms) dominated total call time at small n — larger than the Metal computation itself (≈0.7ms at n=49 with 9,999 perms). The ctypes binding eliminates this overhead entirely, making rapid iteration across many model specifications or dataset sizes practical. At large n (where computation >> 114ms), the relative gain is smaller but the binding is never slower.
 
 ## Binary fixture format
 
@@ -144,8 +182,8 @@ Fixtures are raw little-endian binary, allowing zero-overhead sharing between Py
 - [x] Metal GPU — scratchless stack shader (n ≤ 256)
 - [x] Metal GPU — uint32 indexed single-pass (n ≤ 40% RAM)
 - [x] Runtime memory budget via `recommendedMaxWorkingSetSize`
+- [x] Python binding via ctypes (`python/swiftperm.py` → `libSwiftGeoLib.dylib`)
 - [ ] Larger synthetic datasets: n=50k, n=100k
-- [ ] Python binding via ctypes or Swift-Python bridge
 - [ ] Generalize beyond Moran's I to arbitrary permutation statistics
 - [ ] R package wrapper
 - [ ] Benchmark on M3 Pro/Max/Ultra (larger memory budgets)
