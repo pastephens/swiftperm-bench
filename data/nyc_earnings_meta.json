@@ -1,0 +1,10 @@
+{
+  "dataset": "NYC Earnings Census Blocks (n=108,487)",
+  "variable": "log1p(C000_14 total jobs 2014), standardized",
+  "n": 108487,
+  "nnz": 867896,
+  "weights_type": "KNN-8 from centroids, row-standardized",
+  "reference_morans_i": 0.41509012448506,
+  "z_mean": -2.0120265877524753e-16,
+  "z_std": 1.0
+}

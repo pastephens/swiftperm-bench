@@ -1,0 +1,10 @@
+{
+  "dataset": "King County WA Home Sales 2014-15 (libpysal example)",
+  "variable": "log(price), standardized",
+  "n": 21613,
+  "nnz": 172904,
+  "weights_type": "KNN-8, row-standardized",
+  "reference_morans_i": 0.716806098450342,
+  "z_mean": -2.238178385719133e-15,
+  "z_std": 1.0
+}

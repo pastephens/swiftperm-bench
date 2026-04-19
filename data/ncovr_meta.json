@@ -1,0 +1,10 @@
+{
+  "dataset": "NCOVR US Counties (n=3,085)",
+  "variable": "HR90 (homicide rate 1990), standardized",
+  "n": 3085,
+  "nnz": 18168,
+  "weights_type": "Queen contiguity, row-standardized",
+  "reference_morans_i": 0.3833136112063328,
+  "z_mean": -3.685148710587229e-17,
+  "z_std": 1.0
+}

@@ -1,0 +1,10 @@
+{
+  "dataset": "US SDOH Census Tracts (n=71,901)",
+  "variable": "ep_pov (poverty rate %), standardized",
+  "n": 71901,
+  "nnz": 575208,
+  "weights_type": "KNN-8 from centroids, row-standardized",
+  "reference_morans_i": 0.5355936591635445,
+  "z_mean": 0.0,
+  "z_std": 1.0
+}
