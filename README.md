@@ -132,10 +132,13 @@ uv run python benchmark.py
 
 ## Requirements
 
+**To use the Python binding with a pre-built dylib:**
 - macOS 13+, Apple silicon
-- Xcode (for Metal shader compilation)
 - Python 3.11+, `uv`
 - `libpysal`, `esda`, `scipy`, `numpy`
+
+**To compile the dylib from source:**
+- Xcode (required for Metal shader compilation)
 
 ## Datasets
 
