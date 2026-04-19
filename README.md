@@ -10,25 +10,29 @@ The library targets the same statistical outputs as [esda](https://github.com/py
 
 ## Statistics
 
-### Global (scalar output)
+The goal is to match [esda](https://github.com/pysal/esda) outputs exactly while using Swift Accelerate (CPU) and Metal (GPU) to outperform esda's backends on Apple silicon. `baseline.py` captures esda timings once; `benchmark.py` reports speedups against them.
 
-| Statistic | CPU serial | CPU parallel | Metal GPU |
-|---|---|---|---|
-| Moran's I | ✓ | ✓ | ✓ |
-| Geary's C | ✓ | ✓ | ✓ |
-| Getis-Ord G | ✓ | ✓ | — |
-| Join count | ✓ | ✓ | — |
+**The esda baseline is already Numba-accelerated.** esda's permutation engine (`esda/crand.py`) uses `@njit(fastmath=True)` throughout and distributes work across all cores via joblib when `n_jobs=-1`. Speedups reported here are over esda + Numba + multicore — not bare NumPy.
+
+### Global permutation tests (scalar output)
+
+| Statistic | esda baseline | Accelerate serial | Accelerate parallel | Metal GPU |
+|---|---|---|---|---|
+| Moran's I | ✓ | ✓ | ✓ | ✓ |
+| Geary's C | ✓ | ✓ | ✓ | ✓ |
+| Getis-Ord G | ✓ | ✓ | ✓ | — |
+| Join count | ✓ | ✓ | ✓ | — |
 
 ### Local / LISA (vector output, one value per observation)
 
-| Statistic | Point estimate | CPU serial perm | CPU parallel perm | Metal GPU perm |
-|---|---|---|---|---|
-| Local Moran's I | ✓ | ✓ | ✓ | — |
-| Local Geary's C | ✓ | ✓ | ✓ | — |
+| Statistic | esda baseline | Point estimate | Accelerate serial perm | Accelerate parallel perm | Metal GPU perm |
+|---|---|---|---|---|---|
+| Local Moran's I | ✓ | ✓ | ✓ | ✓ | — |
+| Local Geary's C | ✓ | ✓ | ✓ | ✓ | — |
 
 ### Spatial lag
 
-| | Serial | Parallel |
+| | Accelerate serial | Accelerate parallel |
 |---|---|---|
 | W·y | ✓ | ✓ |
 
@@ -78,15 +82,25 @@ rows, cols, vals = w_to_coo(w)  # works with Queen, Rook, KNN, kernel weights, e
 
 ## Metal GPU — shader selection
 
-The Metal backend automatically selects the best shader for each problem size, using `device.recommendedMaxWorkingSetSize` at runtime:
+On discrete GPUs, data must cross a PCIe bus before the GPU can touch it — a fixed overhead that typically makes GPU acceleration impractical for moderate-sized statistical workloads. Apple silicon's unified memory architecture eliminates this penalty entirely: the GPU reads the same physical memory the CPU just wrote, with no copy. This makes Metal viable at dataset sizes that would be uneconomical on any non-Apple platform.
+
+The backend automatically selects the best shader for each problem size by querying `device.recommendedMaxWorkingSetSize` at runtime:
 
 | Condition | Shader | Strategy | Device memory |
 |---|---|---|---|
-| n ≤ 256 | scratchless | uint16 perm on thread stack | ~0 |
-| index buf ≤ 40% RAM | indexed | uint32 index buffer, single pass | n × nPerm × 4B |
-| otherwise | batched | float scratch, sequential dispatches | budget/batch |
+| n ≤ 256 | scratchless | uint16 perm index on thread stack | ~0 |
+| index buf ≤ 40% RAM | indexed | uint32 index buffer, single-pass | n × nPerm × 4B |
+| otherwise | batched | float scratch buffer, sequential dispatches | budget/batch |
 
-On 8GB M3: n=49 → scratchless; n ≤ ~5,000 → single-pass indexed; larger n → batched.
+**Scratchless** allocates nothing on the device. Each GPU thread encodes its entire permuted index as a `uint16` array on the thread stack and sweeps the weight matrix once. Zero kernel launch overhead, zero memory pressure — the dominant path for small n.
+
+**Indexed** pre-materialises the full `n × nPerm` permutation index as a `uint32` buffer (4 bytes per entry), then dispatches every permutation in a single kernel launch. Each GPU thread reads one permutation, computes the statistic, and writes one value to the null distribution. The single-pass structure maximises GPU utilisation. The 40% RAM threshold is conservative — it leaves headroom for the weight arrays and null distribution buffer. On 8GB M3 with 99,999 permutations this covers n ≤ ~800; at n=49 (Columbus) the index buffer is trivially small and this path runs at full GPU throughput.
+
+**Batched** is the fallback for problems too large to index at once. The permuted z-values are written to a scratch buffer and the kernel is dispatched in sequential chunks sized to the available memory budget. Each chunk is a full GPU dispatch, so compute efficiency is preserved — but there is kernel-launch overhead per chunk and the scratch buffer write adds memory traffic. This path is memory-bandwidth-bound. On M3 base (100 GB/s) it is still faster than CPU parallel for large n; on M4 Pro (273 GB/s) or M4 Max (546 GB/s) the bandwidth advantage widens substantially.
+
+**Scaling with hardware:** more RAM directly expands the indexed path — the single-pass threshold scales linearly with device memory. More GPU cores and higher memory bandwidth improve the batched path. The most impactful upgrade for spatial statistics workloads is a Pro or Max chip: more RAM means more of your problem fits in the fast indexed path, and the higher memory bandwidth accelerates the batched fallback for the rest.
+
+On 8GB M3: n=49 → scratchless; n ≤ ~800 at 99,999 perms → indexed; larger n → batched.
 
 ## Structure
 
