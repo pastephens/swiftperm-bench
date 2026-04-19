@@ -162,16 +162,18 @@ def print_table(dataset_label, results, n_perm):
     print(f"\n{'='*72}")
     print(f"  {dataset_label}  |  {n_perm:,} permutations")
     print(f"{'='*72}")
-    print(f"  {'Implementation':<28} {'Moran I':>10} {'p-value':>9} {'Time':>8}  {'perm/s':>10}  {'speedup':>8}")
-    print(f"  {'-'*68}")
+    print(f"  {'Implementation':<30} {'observed':>10} {'p-value':>9} {'Time':>8}  {'perm/s':>10}  {'speedup':>8}")
+    print(f"  {'-'*70}")
     baseline = None
     for label, (observed, p_value, elapsed, note) in results.items():
         if baseline is None:
             baseline = elapsed
-        speedup = f"{baseline/elapsed:.1f}x" if label != "NumPy" else "—"
+            speedup = "—"
+        else:
+            speedup = f"{baseline/elapsed:.1f}x"
         tp = fmt_throughput(n_perm, elapsed)
         note_str = f"  [{note}]" if note else ""
-        print(f"  {label:<28} {observed:>10.6f} {p_value:>9.5f} {elapsed:>7.3f}s  {tp:>10}  {speedup:>8}{note_str}")
+        print(f"  {label:<30} {observed:>10.6f} {p_value:>9.5f} {elapsed:>7.3f}s  {tp:>10}  {speedup:>8}{note_str}")
     print(f"{'='*72}")
 
 
@@ -179,7 +181,7 @@ def print_table(dataset_label, results, n_perm):
 # Per-dataset benchmark
 # ---------------------------------------------------------------------------
 
-def benchmark_dataset(tag, z_path, w_path, n_perm, seed, dylib_path=None):
+def benchmark_dataset(tag, z_path, w_path, n_perm, seed, dylib_path=None, baselines=None):
     z = read_z_vector(z_path)
     n, nnz, rows, cols, values = read_sparse_weights(w_path)
     W = build_sparse_matrix(n, rows, cols, values)
@@ -187,6 +189,13 @@ def benchmark_dataset(tag, z_path, w_path, n_perm, seed, dylib_path=None):
     print(f"  n={n:,}, nnz={nnz:,}")
 
     results = {}
+
+    # esda baselines (pre-computed, loaded from data/baselines.json)
+    if baselines:
+        for stat_label in ("esda Moran's I", "esda Geary's C"):
+            if stat_label in baselines:
+                b = baselines[stat_label]
+                results[stat_label] = (b["observed"], b["p_sim"], b["elapsed_s"], f"baseline n_perm={b['n_perm']:,}")
 
     # NumPy — skip for n > 10,000 (would take several minutes)
     if n <= 10000:
@@ -242,6 +251,18 @@ def main():
     dylib_path = args.dylib if args.dylib is not True else None
     RESULTS_DIR.mkdir(exist_ok=True)
 
+    # Load pre-computed esda baselines if available
+    baselines_path = DATA_DIR / "baselines.json"
+    all_baselines = {}
+    if baselines_path.exists():
+        with open(baselines_path) as f:
+            bl = json.load(f)
+        all_baselines = bl.get("datasets", {})
+        print(f"Loaded esda baselines from {baselines_path} "
+              f"(generated {bl.get('generated_at', '?')[:10]})")
+    else:
+        print(f"No baselines found — run baseline.py to generate esda comparison rows")
+
     datasets = [
         ("Columbus_n49",         "Columbus (n=49)",                 "columbus_z.bin",      "columbus_weights.bin"),
         ("KingCounty_n21613",    "King County WA (n=21,613)",       "kingcounty_z.bin",    "kingcounty_weights.bin"),
@@ -264,7 +285,9 @@ def main():
         print(f"\n{'─'*72}")
         print(f"  Dataset: {label}")
         results, n = benchmark_dataset(
-            tag, z_path, w_path, n_perm, SEED, dylib_path=dylib_path
+            tag, z_path, w_path, n_perm, SEED,
+            dylib_path=dylib_path,
+            baselines=all_baselines.get(label),
         )
         print_table(label, results, n_perm)
         all_results[label] = {

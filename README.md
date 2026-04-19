@@ -107,7 +107,8 @@ python/
 ├── swiftperm.py                      # Python ctypes wrapper
 ├── test_swiftperm.py                 # Accuracy test suite (85 tests)
 ├── generate_fixtures.py              # Download real-world datasets → binary fixtures
-└── benchmark.py                      # Benchmark runner
+├── baseline.py                       # Run native esda once → data/baselines.json
+└── benchmark.py                      # Benchmark runner (loads baselines for comparison)
 data/                                 # Binary fixtures (generated)
 ```
 
@@ -126,7 +127,10 @@ swift build -c release
 cd ../python
 uv run pytest test_swiftperm.py -v
 
-# 4. Run benchmarks
+# 4. Generate esda baselines (one-time; saves data/baselines.json)
+uv run python baseline.py
+
+# 5. Run benchmarks (loads baselines automatically if present)
 uv run python benchmark.py
 ```
 
