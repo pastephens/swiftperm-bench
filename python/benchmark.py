@@ -235,9 +235,6 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dylib", type=str, nargs="?", const=True, default=None,
                         help="Path to libSwiftGeoLib.dylib (omit path to use default location)")
-    parser.add_argument("--swift-bin", type=str, default=None,
-                        help="(deprecated) use --dylib instead")
-    parser.add_argument("--synthetic", action="store_true")
     parser.add_argument("--n-perm", type=int, default=N_PERM)
     args = parser.parse_args()
 
@@ -245,20 +242,13 @@ def main():
     dylib_path = args.dylib if args.dylib is not True else None
     RESULTS_DIR.mkdir(exist_ok=True)
 
-    datasets = [("Columbus_n49", "Columbus (n=49)", "columbus_z.bin", "columbus_weights.bin")]
-
-    if args.synthetic:
-        with open(DATA_DIR / "synthetic_meta.json") as f:
-            meta = json.load(f)
-        for n_str in sorted(meta.keys(), key=int):
-            n = int(n_str)
-            tag = f"Synthetic_KNN_n{n}"
-            datasets.append((
-                tag,
-                f"Synthetic KNN (n={n:,})",
-                f"synthetic_{n}_z.bin",
-                f"synthetic_{n}_weights.bin"
-            ))
+    datasets = [
+        ("Columbus_n49",         "Columbus (n=49)",                 "columbus_z.bin",      "columbus_weights.bin"),
+        ("KingCounty_n21613",    "King County WA (n=21,613)",       "kingcounty_z.bin",    "kingcounty_weights.bin"),
+        ("NCOVR_n3085",          "NCOVR US Counties (n=3,085)",     "ncovr_z.bin",         "ncovr_weights.bin"),
+        ("SDOH_n71901",          "US SDOH Tracts (n=71,901)",       "sdoh_z.bin",          "sdoh_weights.bin"),
+        ("NYC_Earnings_n108487", "NYC Earnings Blocks (n=108,487)", "nyc_earnings_z.bin",  "nyc_earnings_weights.bin"),
+    ]
 
     print(f"\nRunning benchmarks: {n_perm:,} permutations each\n")
 
@@ -268,7 +258,7 @@ def main():
         z_path = DATA_DIR / z_file
         w_path = DATA_DIR / w_file
         if not z_path.exists():
-            print(f"\n[{label}] fixtures not found — run generate_synthetic.py")
+            print(f"\n[{label}] fixtures not found — run generate_fixtures.py")
             continue
 
         print(f"\n{'─'*72}")
