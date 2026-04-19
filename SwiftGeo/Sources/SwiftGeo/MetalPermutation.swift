@@ -1,13 +1,21 @@
 // MetalPermutation.swift
-// Moran's I permutation test via Metal GPU compute.
+// Permutation test via Metal GPU compute.
+// Supports Moran's I and Geary's C (CPU-only statistics use the parallel CPU path).
 //
-// Three shader variants, selected automatically based on n:
-//   n <= 256: moranPermutationScratchless  (stack-allocated uint16 perm, single pass)
-//   n <= 65535: moranPermutationIndexed    (uint32 index buffer, 4x smaller than float scratch)
-//   any n, fallback: moranPermutation      (batched float scratch)
+// Three shader variants per statistic, selected automatically based on n:
+//   n <= 256: scratchless  (stack-allocated uint16 perm, zero device allocation)
+//   index buf <= 40% RAM: indexed  (uint32 index buffer, single pass)
+//   otherwise: batched  (float scratch, sequential dispatches)
 
 import Foundation
 import Metal
+
+// MARK: - Statistic selector
+
+public enum MetalStatistic {
+    case moranI
+    case gearysC
+}
 
 // MARK: - Param structs (must match shader layouts exactly)
 
@@ -41,7 +49,9 @@ inline uint64_t xorshift64(uint64_t s) {
 struct MoranParams      { uint n; uint nnz; uint nPerm; uint seed; uint permOffset; };
 struct MoranParamsLarge { uint n; uint nnz; uint nPerm; uint seed; uint permOffset; uint useUint16; };
 
-// Variant A: stack-allocated perm, n <= 256, no device scratch at all
+// ── Moran's I ────────────────────────────────────────────────────────────────
+
+// Scratchless: uint16 perm on thread stack, n <= 256, zero device allocation.
 kernel void moranPermutationScratchless(
     device const float*       z        [[ buffer(0) ]],
     device const uint*        wRows    [[ buffer(1) ]],
@@ -62,13 +72,13 @@ kernel void moranPermutationScratchless(
         uint j = uint(state >> 33) % (i + 1);
         uint16_t tmp = perm[i]; perm[i] = perm[j]; perm[j] = tmp;
     }
-    float moranI = 0.0;
+    float stat = 0.0;
     for (uint k = 0; k < nnz; k++)
-        moranI += z[wRows[k]] * wVals[k] * z[perm[wCols[k]]];
-    nullDist[tid] = moranI / float(n);
+        stat += z[perm[wRows[k]]] * wVals[k] * z[perm[wCols[k]]];
+    nullDist[tid] = stat / float(n);
 }
 
-// Variant B: uint32 index buffer, any n, single pass, 4x smaller than float scratch
+// Indexed: uint32 device index buffer, any n, single pass.
 kernel void moranPermutationIndexed(
     device const float*            z        [[ buffer(0) ]],
     device const uint*             wRows    [[ buffer(1) ]],
@@ -90,13 +100,13 @@ kernel void moranPermutationIndexed(
         uint j = uint(state >> 33) % (i + 1);
         uint tmp = perm[i]; perm[i] = perm[j]; perm[j] = tmp;
     }
-    float moranI = 0.0;
+    float stat = 0.0;
     for (uint k = 0; k < nnz; k++)
-        moranI += z[wRows[k]] * wVals[k] * z[perm[wCols[k]]];
-    nullDist[tid] = moranI / float(n);
+        stat += z[perm[wRows[k]]] * wVals[k] * z[perm[wCols[k]]];
+    nullDist[tid] = stat / float(n);
 }
 
-// Variant C: original batched float scratch (fallback)
+// Batched: float scratch buffer, sequential dispatches for large n.
 kernel void moranPermutation(
     device const float*       z        [[ buffer(0) ]],
     device const uint*        wRows    [[ buffer(1) ]],
@@ -118,10 +128,103 @@ kernel void moranPermutation(
         uint j = uint(state >> 33) % (i + 1);
         float tmp = zPerm[i]; zPerm[i] = zPerm[j]; zPerm[j] = tmp;
     }
-    float moranI = 0.0;
+    float stat = 0.0;
     for (uint k = 0; k < nnz; k++)
-        moranI += z[wRows[k]] * wVals[k] * zPerm[wCols[k]];
-    nullDist[tid] = moranI / float(n);
+        stat += zPerm[wRows[k]] * wVals[k] * zPerm[wCols[k]];
+    nullDist[tid] = stat / float(n);
+}
+
+// ── Geary's C ────────────────────────────────────────────────────────────────
+// C = (n-1)/(2n²) * Σₖ wₖ (z_perm[rows[k]] - z_perm[cols[k]])²
+// Requires standardized z (mean=0, std=1) so that S₀=n and Σz²=n.
+
+kernel void gearyCPermutationScratchless(
+    device const float*       z        [[ buffer(0) ]],
+    device const uint*        wRows    [[ buffer(1) ]],
+    device const uint*        wCols    [[ buffer(2) ]],
+    device const float*       wVals    [[ buffer(3) ]],
+    device float*             nullDist [[ buffer(4) ]],
+    device const MoranParams& params   [[ buffer(5) ]],
+    uint tid [[ thread_position_in_grid ]]
+) {
+    if (tid >= params.nPerm) return;
+    const uint n = params.n, nnz = params.nnz;
+    uint16_t perm[256];
+    for (uint i = 0; i < n; i++) perm[i] = uint16_t(i);
+    uint64_t state = (uint64_t)params.seed +
+        ((uint64_t)(params.permOffset + tid)) * 6364136223846793005ULL;
+    for (uint i = n - 1; i > 0; i--) {
+        state ^= state << 13; state ^= state >> 7; state ^= state << 17;
+        uint j = uint(state >> 33) % (i + 1);
+        uint16_t tmp = perm[i]; perm[i] = perm[j]; perm[j] = tmp;
+    }
+    float stat = 0.0;
+    for (uint k = 0; k < nnz; k++) {
+        float diff = z[perm[wRows[k]]] - z[perm[wCols[k]]];
+        stat += wVals[k] * diff * diff;
+    }
+    float fn = float(n);
+    nullDist[tid] = ((fn - 1.0) / (2.0 * fn * fn)) * stat;
+}
+
+kernel void gearyCPermutationIndexed(
+    device const float*            z        [[ buffer(0) ]],
+    device const uint*             wRows    [[ buffer(1) ]],
+    device const uint*             wCols    [[ buffer(2) ]],
+    device const float*            wVals    [[ buffer(3) ]],
+    device float*                  nullDist [[ buffer(4) ]],
+    device const MoranParamsLarge& params   [[ buffer(5) ]],
+    device uint*                   permBuf  [[ buffer(6) ]],
+    uint tid [[ thread_position_in_grid ]]
+) {
+    if (tid >= params.nPerm) return;
+    const uint n = params.n, nnz = params.nnz;
+    device uint* perm = permBuf + (tid * n);
+    for (uint i = 0; i < n; i++) perm[i] = i;
+    uint64_t state = (uint64_t)params.seed +
+        ((uint64_t)(params.permOffset + tid)) * 6364136223846793005ULL;
+    for (uint i = n - 1; i > 0; i--) {
+        state ^= state << 13; state ^= state >> 7; state ^= state << 17;
+        uint j = uint(state >> 33) % (i + 1);
+        uint tmp = perm[i]; perm[i] = perm[j]; perm[j] = tmp;
+    }
+    float stat = 0.0;
+    for (uint k = 0; k < nnz; k++) {
+        float diff = z[perm[wRows[k]]] - z[perm[wCols[k]]];
+        stat += wVals[k] * diff * diff;
+    }
+    float fn = float(n);
+    nullDist[tid] = ((fn - 1.0) / (2.0 * fn * fn)) * stat;
+}
+
+kernel void gearyCPermutation(
+    device const float*       z        [[ buffer(0) ]],
+    device const uint*        wRows    [[ buffer(1) ]],
+    device const uint*        wCols    [[ buffer(2) ]],
+    device const float*       wVals    [[ buffer(3) ]],
+    device float*             nullDist [[ buffer(4) ]],
+    device const MoranParams& params   [[ buffer(5) ]],
+    device float*             zPerms   [[ buffer(6) ]],
+    uint tid [[ thread_position_in_grid ]]
+) {
+    if (tid >= params.nPerm) return;
+    const uint n = params.n, nnz = params.nnz;
+    device float* zPerm = zPerms + (tid * n);
+    for (uint i = 0; i < n; i++) zPerm[i] = z[i];
+    uint64_t state = (uint64_t)params.seed +
+        ((uint64_t)(params.permOffset + tid)) * 6364136223846793005ULL;
+    for (uint i = n - 1; i > 0; i--) {
+        state ^= state << 13; state ^= state >> 7; state ^= state << 17;
+        uint j = uint(state >> 33) % (i + 1);
+        float tmp = zPerm[i]; zPerm[i] = zPerm[j]; zPerm[j] = tmp;
+    }
+    float stat = 0.0;
+    for (uint k = 0; k < nnz; k++) {
+        float diff = zPerm[wRows[k]] - zPerm[wCols[k]];
+        stat += wVals[k] * diff * diff;
+    }
+    float fn = float(n);
+    nullDist[tid] = ((fn - 1.0) / (2.0 * fn * fn)) * stat;
 }
 """#
 
@@ -131,13 +234,17 @@ public class MetalMoranEngine {
 
     private let device: MTLDevice
     private let commandQueue: MTLCommandQueue
-    private let psoScratchless: MTLComputePipelineState  // n <= 256
-    private let psoIndexed: MTLComputePipelineState      // any n, uint32 index buf
-    private let psoBatched: MTLComputePipelineState      // fallback float scratch
 
-    // Use 40% of recommended working set — conservative enough to leave
-    // headroom for macOS and the CPU side of the benchmark on 8GB machines.
-    // Evaluated lazily per-device at runtime.
+    // Moran's I pipelines
+    private let psoMoranScratchless: MTLComputePipelineState
+    private let psoMoranIndexed: MTLComputePipelineState
+    private let psoMoranBatched: MTLComputePipelineState
+
+    // Geary's C pipelines
+    private let psoGearyCScratchless: MTLComputePipelineState
+    private let psoGearyCScratchlessIndexed: MTLComputePipelineState
+    private let psoGearyCScratchlessBatched: MTLComputePipelineState
+
     static func maxMemoryBytes(for device: MTLDevice) -> Int {
         let recommended = device.recommendedMaxWorkingSetSize
         return Int(Double(recommended) * 0.40)
@@ -159,23 +266,31 @@ public class MetalMoranEngine {
             return nil
         }
 
+        func pso(_ name: String) -> MTLComputePipelineState? {
+            guard let fn = lib.makeFunction(name: name) else { return nil }
+            return try? dev.makeComputePipelineState(function: fn)
+        }
+
         guard
-            let fnA = lib.makeFunction(name: "moranPermutationScratchless"),
-            let fnB = lib.makeFunction(name: "moranPermutationIndexed"),
-            let fnC = lib.makeFunction(name: "moranPermutation"),
-            let psoA = try? dev.makeComputePipelineState(function: fnA),
-            let psoB = try? dev.makeComputePipelineState(function: fnB),
-            let psoC = try? dev.makeComputePipelineState(function: fnC)
+            let a1 = pso("moranPermutationScratchless"),
+            let a2 = pso("moranPermutationIndexed"),
+            let a3 = pso("moranPermutation"),
+            let b1 = pso("gearyCPermutationScratchless"),
+            let b2 = pso("gearyCPermutationIndexed"),
+            let b3 = pso("gearyCPermutation")
         else {
             print("[Metal] Could not create pipeline states.")
             return nil
         }
 
-        self.device           = dev
-        self.commandQueue     = queue
-        self.psoScratchless   = psoA
-        self.psoIndexed       = psoB
-        self.psoBatched       = psoC
+        self.device                      = dev
+        self.commandQueue                = queue
+        self.psoMoranScratchless         = a1
+        self.psoMoranIndexed             = a2
+        self.psoMoranBatched             = a3
+        self.psoGearyCScratchless        = b1
+        self.psoGearyCScratchlessIndexed = b2
+        self.psoGearyCScratchlessBatched = b3
 
         print("[Metal] Device: \(dev.name)")
     }
@@ -196,18 +311,33 @@ public class MetalMoranEngine {
         return .batched
     }
 
+    private func pipelines(for statistic: MetalStatistic)
+        -> (scratchless: MTLComputePipelineState,
+            indexed:     MTLComputePipelineState,
+            batched:     MTLComputePipelineState)
+    {
+        switch statistic {
+        case .moranI:
+            return (psoMoranScratchless, psoMoranIndexed, psoMoranBatched)
+        case .gearysC:
+            return (psoGearyCScratchless, psoGearyCScratchlessIndexed, psoGearyCScratchlessBatched)
+        }
+    }
+
     // MARK: - Run
 
     public func run(
         z: [Double],
         weights: SparseWeights,
         nPermutations: Int,
-        seed: UInt32 = 12345
+        seed: UInt32 = 12345,
+        statistic: MetalStatistic = .moranI
     ) -> PermutationResult? {
 
-        let n   = weights.n
-        let nnz = weights.nnz
+        let n    = weights.n
+        let nnz  = weights.nnz
         let mode = selectMode(n: n, nPerm: nPermutations)
+        let pso  = pipelines(for: statistic)
         print("[Metal] Shader: \(mode.rawValue), n=\(n), nPerm=\(nPermutations)")
 
         let zF     = z.map { Float($0) }
@@ -216,125 +346,120 @@ public class MetalMoranEngine {
         let wColsU = weights.cols.map { UInt32($0) }
 
         guard
-            let zBuf = device.makeBuffer(bytes: zF,
-                length: MemoryLayout<Float>.stride * n, options: .storageModeShared),
+            let zBuf    = device.makeBuffer(bytes: zF,
+                length: MemoryLayout<Float>.stride * n,   options: .storageModeShared),
             let rowsBuf = device.makeBuffer(bytes: wRowsU,
                 length: MemoryLayout<UInt32>.stride * nnz, options: .storageModeShared),
             let colsBuf = device.makeBuffer(bytes: wColsU,
                 length: MemoryLayout<UInt32>.stride * nnz, options: .storageModeShared),
             let valsBuf = device.makeBuffer(bytes: wValsF,
-                length: MemoryLayout<Float>.stride * nnz, options: .storageModeShared)
+                length: MemoryLayout<Float>.stride * nnz,  options: .storageModeShared)
         else { return nil }
 
         switch mode {
         case .scratchless:
             return runScratchless(z: z, zBuf: zBuf, rowsBuf: rowsBuf,
-                colsBuf: colsBuf, valsBuf: valsBuf,
-                weights: weights, nPermutations: nPermutations, seed: seed)
+                colsBuf: colsBuf, valsBuf: valsBuf, weights: weights,
+                nPermutations: nPermutations, seed: seed,
+                pipeline: pso.scratchless, statistic: statistic)
         case .indexed:
             return runIndexed(z: z, zBuf: zBuf, rowsBuf: rowsBuf,
-                colsBuf: colsBuf, valsBuf: valsBuf,
-                weights: weights, nPermutations: nPermutations, seed: seed)
+                colsBuf: colsBuf, valsBuf: valsBuf, weights: weights,
+                nPermutations: nPermutations, seed: seed,
+                pipeline: pso.indexed, statistic: statistic)
         case .batched:
             return runBatched(z: z, zBuf: zBuf, rowsBuf: rowsBuf,
-                colsBuf: colsBuf, valsBuf: valsBuf,
-                weights: weights, nPermutations: nPermutations, seed: seed)
+                colsBuf: colsBuf, valsBuf: valsBuf, weights: weights,
+                nPermutations: nPermutations, seed: seed,
+                pipeline: pso.batched, statistic: statistic)
         }
     }
 
-    // MARK: - Scratchless (n <= 256, single pass, no device scratch)
+    // MARK: - Scratchless
 
     private func runScratchless(
         z: [Double], zBuf: MTLBuffer, rowsBuf: MTLBuffer,
         colsBuf: MTLBuffer, valsBuf: MTLBuffer,
-        weights: SparseWeights, nPermutations: Int, seed: UInt32
+        weights: SparseWeights, nPermutations: Int, seed: UInt32,
+        pipeline: MTLComputePipelineState, statistic: MetalStatistic
     ) -> PermutationResult? {
-        let n = weights.n
-
         guard let nullBuf = device.makeBuffer(
             length: MemoryLayout<Float>.stride * nPermutations,
             options: .storageModeShared)
         else { return nil }
 
         var params = MoranParamsMetal(
-            n: UInt32(n), nnz: UInt32(weights.nnz),
+            n: UInt32(weights.n), nnz: UInt32(weights.nnz),
             nPerm: UInt32(nPermutations), seed: seed, permOffset: 0
         )
         guard let paramsBuf = device.makeBuffer(bytes: &params,
-            length: MemoryLayout<MoranParamsMetal>.size,
-            options: .storageModeShared)
+            length: MemoryLayout<MoranParamsMetal>.size, options: .storageModeShared)
         else { return nil }
 
         let start = Date()
-        dispatch(pipeline: psoScratchless, nThreads: nPermutations,
+        dispatch(pipeline: pipeline, nThreads: nPermutations,
                  buffers: [zBuf, rowsBuf, colsBuf, valsBuf, nullBuf, paramsBuf])
         let elapsed = Date().timeIntervalSince(start)
 
         return buildResult(z: z, weights: weights, nullBuf: nullBuf,
-                           nPermutations: nPermutations, elapsed: elapsed)
+                           nPermutations: nPermutations, elapsed: elapsed,
+                           statistic: statistic)
     }
 
-    // MARK: - Indexed (any n, single pass, uint32 perm buffer)
+    // MARK: - Indexed
 
     private func runIndexed(
         z: [Double], zBuf: MTLBuffer, rowsBuf: MTLBuffer,
         colsBuf: MTLBuffer, valsBuf: MTLBuffer,
-        weights: SparseWeights, nPermutations: Int, seed: UInt32
+        weights: SparseWeights, nPermutations: Int, seed: UInt32,
+        pipeline: MTLComputePipelineState, statistic: MetalStatistic
     ) -> PermutationResult? {
-        let n = weights.n
-        let indexBytes = nPermutations * n * MemoryLayout<UInt32>.stride
-        let indexMB    = indexBytes / (1024 * 1024)
-        print("[Metal] Index buffer: \(indexMB)MB")
+        let indexBytes = nPermutations * weights.n * MemoryLayout<UInt32>.stride
+        print("[Metal] Index buffer: \(indexBytes / (1024 * 1024))MB")
 
         guard
-            let nullBuf  = device.makeBuffer(
-                length: MemoryLayout<Float>.stride * nPermutations,
-                options: .storageModeShared),
-            let permBuf  = device.makeBuffer(
-                length: indexBytes,
-                options: .storageModeShared)
+            let nullBuf = device.makeBuffer(
+                length: MemoryLayout<Float>.stride * nPermutations, options: .storageModeShared),
+            let permBuf = device.makeBuffer(length: indexBytes, options: .storageModeShared)
         else { return nil }
 
         var params = MoranParamsMetalLarge(
-            n: UInt32(n), nnz: UInt32(weights.nnz),
-            nPerm: UInt32(nPermutations), seed: seed,
-            permOffset: 0, useUint16: 0
+            n: UInt32(weights.n), nnz: UInt32(weights.nnz),
+            nPerm: UInt32(nPermutations), seed: seed, permOffset: 0, useUint16: 0
         )
         guard let paramsBuf = device.makeBuffer(bytes: &params,
-            length: MemoryLayout<MoranParamsMetalLarge>.size,
-            options: .storageModeShared)
+            length: MemoryLayout<MoranParamsMetalLarge>.size, options: .storageModeShared)
         else { return nil }
 
         let start = Date()
-        dispatch(pipeline: psoIndexed, nThreads: nPermutations,
+        dispatch(pipeline: pipeline, nThreads: nPermutations,
                  buffers: [zBuf, rowsBuf, colsBuf, valsBuf, nullBuf, paramsBuf, permBuf])
         let elapsed = Date().timeIntervalSince(start)
 
         return buildResult(z: z, weights: weights, nullBuf: nullBuf,
-                           nPermutations: nPermutations, elapsed: elapsed)
+                           nPermutations: nPermutations, elapsed: elapsed,
+                           statistic: statistic)
     }
 
-    // MARK: - Batched float scratch (fallback for very large n)
+    // MARK: - Batched
 
     private func runBatched(
         z: [Double], zBuf: MTLBuffer, rowsBuf: MTLBuffer,
         colsBuf: MTLBuffer, valsBuf: MTLBuffer,
-        weights: SparseWeights, nPermutations: Int, seed: UInt32
+        weights: SparseWeights, nPermutations: Int, seed: UInt32,
+        pipeline: MTLComputePipelineState, statistic: MetalStatistic
     ) -> PermutationResult? {
-        let n   = weights.n
+        let n        = weights.n
         let maxBytes = MetalMoranEngine.maxMemoryBytes(for: device)
-        let batch = max(1, maxBytes / (n * MemoryLayout<Float>.stride))
+        let batch    = max(1, maxBytes / (n * MemoryLayout<Float>.stride))
         let nBatches = (nPermutations + batch - 1) / batch
         print("[Metal] Batched fallback: \(nBatches) batches of ≤\(batch)")
 
-        let scratchBytes = batch * n * MemoryLayout<Float>.stride
         guard
             let nullBatchBuf = device.makeBuffer(
-                length: MemoryLayout<Float>.stride * batch,
-                options: .storageModeShared),
+                length: MemoryLayout<Float>.stride * batch, options: .storageModeShared),
             let scratchBuf   = device.makeBuffer(
-                length: scratchBytes,
-                options: .storageModeShared)
+                length: batch * n * MemoryLayout<Float>.stride, options: .storageModeShared)
         else { return nil }
 
         var nullDist = [Double]()
@@ -346,23 +471,20 @@ public class MetalMoranEngine {
             let thisBatch = min(batch, nPermutations - offset)
             var params = MoranParamsMetal(
                 n: UInt32(n), nnz: UInt32(weights.nnz),
-                nPerm: UInt32(thisBatch), seed: seed,
-                permOffset: UInt32(offset)
+                nPerm: UInt32(thisBatch), seed: seed, permOffset: UInt32(offset)
             )
             guard let paramsBuf = device.makeBuffer(bytes: &params,
-                length: MemoryLayout<MoranParamsMetal>.size,
-                options: .storageModeShared)
+                length: MemoryLayout<MoranParamsMetal>.size, options: .storageModeShared)
             else { continue }
-            dispatch(pipeline: psoBatched, nThreads: thisBatch,
+            dispatch(pipeline: pipeline, nThreads: thisBatch,
                      buffers: [zBuf, rowsBuf, colsBuf, valsBuf,
                                 nullBatchBuf, paramsBuf, scratchBuf])
-            let ptr = nullBatchBuf.contents().bindMemory(
-                to: Float.self, capacity: thisBatch)
+            let ptr = nullBatchBuf.contents().bindMemory(to: Float.self, capacity: thisBatch)
             for i in 0..<thisBatch { nullDist.append(Double(ptr[i])) }
         }
 
         let elapsed  = Date().timeIntervalSince(start)
-        let observed = moranI(z: z, weights: weights)
+        let observed = computeObserved(z: z, weights: weights, statistic: statistic)
         let absObs   = abs(observed)
         let extreme  = nullDist.filter { abs($0) >= absObs }.count
         let pValue   = Double(extreme) / Double(nPermutations)
@@ -371,7 +493,15 @@ public class MetalMoranEngine {
             nThreads: device.maxThreadsPerThreadgroup.width)
     }
 
-    // MARK: - Dispatch helper
+    // MARK: - Helpers
+
+    private func computeObserved(z: [Double], weights: SparseWeights,
+                                  statistic: MetalStatistic) -> Double {
+        switch statistic {
+        case .moranI:  return moranI(z: z, weights: weights)
+        case .gearysC: return gearysC(z: z, weights: weights)
+        }
+    }
 
     private func dispatch(pipeline: MTLComputePipelineState,
                           nThreads: Int, buffers: [MTLBuffer]) {
@@ -393,16 +523,14 @@ public class MetalMoranEngine {
         cmdBuf.waitUntilCompleted()
     }
 
-    // MARK: - Result builder
-
     private func buildResult(
         z: [Double], weights: SparseWeights,
-        nullBuf: MTLBuffer, nPermutations: Int, elapsed: Double
+        nullBuf: MTLBuffer, nPermutations: Int, elapsed: Double,
+        statistic: MetalStatistic
     ) -> PermutationResult {
-        let ptr      = nullBuf.contents().bindMemory(to: Float.self,
-                                                     capacity: nPermutations)
+        let ptr      = nullBuf.contents().bindMemory(to: Float.self, capacity: nPermutations)
         let nullDist = (0..<nPermutations).map { Double(ptr[$0]) }
-        let observed = moranI(z: z, weights: weights)
+        let observed = computeObserved(z: z, weights: weights, statistic: statistic)
         let absObs   = abs(observed)
         let extreme  = nullDist.filter { abs($0) >= absObs }.count
         let pValue   = Double(extreme) / Double(nPermutations)
@@ -414,7 +542,7 @@ public class MetalMoranEngine {
     }
 }
 
-// MARK: - Convenience wrapper
+// MARK: - Convenience wrappers
 
 public func moranPermutationTestMetal(
     z: [Double],
@@ -423,6 +551,17 @@ public func moranPermutationTestMetal(
     seed: UInt32 = 12345
 ) -> PermutationResult? {
     guard let engine = MetalMoranEngine() else { return nil }
-    return engine.run(z: z, weights: weights,
-                      nPermutations: nPermutations, seed: seed)
+    return engine.run(z: z, weights: weights, nPermutations: nPermutations,
+                      seed: seed, statistic: .moranI)
+}
+
+public func gearyCPermutationTestMetal(
+    z: [Double],
+    weights: SparseWeights,
+    nPermutations: Int = 99999,
+    seed: UInt32 = 12345
+) -> PermutationResult? {
+    guard let engine = MetalMoranEngine() else { return nil }
+    return engine.run(z: z, weights: weights, nPermutations: nPermutations,
+                      seed: seed, statistic: .gearysC)
 }

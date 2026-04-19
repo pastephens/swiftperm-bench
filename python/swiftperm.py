@@ -2,18 +2,26 @@
 swiftperm.py
 Python ctypes binding for the SwiftGeoLib dynamic library.
 
-Exposes three permutation backends (serial, parallel, Metal) and a point
-estimate of Moran's I. All numpy inputs are copied to contiguous float64/int32
-arrays before passing to C — slices and other dtypes are handled automatically.
+Exposes three permutation backends (serial, parallel, Metal) for four statistics:
+Moran's I, Geary's C, Getis-Ord G (CPU only), and join count (CPU only).
 
+All numpy inputs are copied to contiguous float64/int32 arrays before passing to C.
 The null distribution is written directly into a pre-allocated numpy array;
 no Swift heap allocation or free function is needed.
 
 Usage:
     from swiftperm import SwiftPerm
-    sp = SwiftPerm()                             # auto-discovers dylib
-    result = sp.perm_parallel(z, rows, cols, vals, n)
+    sp = SwiftPerm()
+    result = sp.perm_parallel(z, rows, cols, vals, n, statistic="moran")
+    result = sp.perm_parallel(z, rows, cols, vals, n, statistic="gearysc")
+    result = sp.perm_metal(z, rows, cols, vals, n, statistic="gearysc")
     print(result.observed, result.p_value)
+
+Statistics:
+    "moran"     Moran's I — standardized z, GPU supported
+    "gearysc"   Geary's C — standardized z, GPU supported
+    "getisordg" Getis-Ord G — positive z, CPU only
+    "joincount" Join count — binary z ∈ {0,1}, CPU only
 
 Environment:
     SWIFTGEO_DYLIB   Override dylib path (default: ../SwiftGeo/.build/release/libSwiftGeoLib.dylib)
@@ -47,6 +55,16 @@ _OUT_ARGS = [
     _i32_p,                    # out_nthreads
 ]
 
+# Maps statistic name → C symbol suffix
+_STAT_SUFFIX = {
+    "moran":     "",
+    "gearysc":   "_gearysc",
+    "getisordg": "_getisordg",
+    "joincount":  "_joincount",
+}
+# Statistics with Metal GPU paths
+_METAL_STATS = {"moran", "gearysc"}
+
 _lib = None
 
 
@@ -58,17 +76,25 @@ def _load_lib(dylib_path=None):
     path = dylib_path or os.environ.get("SWIFTGEO_DYLIB") or str(_DEFAULT_DYLIB)
     lib = ctypes.CDLL(str(path))
 
-    lib.swiftgeo_moran_i.restype  = ctypes.c_double
-    lib.swiftgeo_moran_i.argtypes = _WEIGHT_ARGS
-
-    for name in ("swiftgeo_perm_serial", "swiftgeo_perm_parallel"):
+    # Point estimate functions
+    for name, restype in [("swiftgeo_moran_i", ctypes.c_double),
+                           ("swiftgeo_gearysc",  ctypes.c_double)]:
         fn = getattr(lib, name)
-        fn.restype  = None
-        fn.argtypes = _WEIGHT_ARGS + [ctypes.c_int32, ctypes.c_uint64] + _OUT_ARGS
+        fn.restype  = restype
+        fn.argtypes = _WEIGHT_ARGS
 
-    lib.swiftgeo_perm_metal.restype  = ctypes.c_int32
-    # Metal seed is UInt32 (not UInt64) — matches MetalPermutation.swift
-    lib.swiftgeo_perm_metal.argtypes = _WEIGHT_ARGS + [ctypes.c_int32, ctypes.c_uint32] + _OUT_ARGS
+    # CPU perm functions (serial + parallel, all statistics)
+    for suffix in ("", "_gearysc", "_getisordg", "_joincount"):
+        for variant in ("serial", "parallel"):
+            fn = getattr(lib, f"swiftgeo_perm_{variant}{suffix}")
+            fn.restype  = None
+            fn.argtypes = _WEIGHT_ARGS + [ctypes.c_int32, ctypes.c_uint64] + _OUT_ARGS
+
+    # Metal perm functions (Moran's I and Geary's C only — seed is UInt32)
+    for suffix in ("", "_gearysc"):
+        fn = getattr(lib, f"swiftgeo_perm_metal{suffix}")
+        fn.restype  = ctypes.c_int32
+        fn.argtypes = _WEIGHT_ARGS + [ctypes.c_int32, ctypes.c_uint32] + _OUT_ARGS
 
     _lib = lib
     return lib
@@ -124,22 +150,37 @@ class SwiftPerm:
             *self._weight_args(z_c, rows_c, cols_c, vals_c, n)
         )
 
-    def perm_serial(self, z, rows, cols, vals, n, n_perm=99999, seed=12345) -> PermResult:
-        return self._call(self._lib.swiftgeo_perm_serial,
-                          z, rows, cols, vals, n, n_perm, ctypes.c_uint64(seed))
+    def gearysc(self, z, rows, cols, vals, n) -> float:
+        z_c, rows_c, cols_c, vals_c = self._prep(z, rows, cols, vals)
+        return self._lib.swiftgeo_gearysc(
+            *self._weight_args(z_c, rows_c, cols_c, vals_c, n)
+        )
 
-    def perm_parallel(self, z, rows, cols, vals, n, n_perm=99999, seed=12345) -> PermResult:
-        return self._call(self._lib.swiftgeo_perm_parallel,
-                          z, rows, cols, vals, n, n_perm, ctypes.c_uint64(seed))
+    def perm_serial(self, z, rows, cols, vals, n, n_perm=99999, seed=12345,
+                    statistic="moran") -> PermResult:
+        suffix = _STAT_SUFFIX[statistic]
+        fn = getattr(self._lib, f"swiftgeo_perm_serial{suffix}")
+        return self._call(fn, z, rows, cols, vals, n, n_perm, ctypes.c_uint64(seed))
+
+    def perm_parallel(self, z, rows, cols, vals, n, n_perm=99999, seed=12345,
+                      statistic="moran") -> PermResult:
+        suffix = _STAT_SUFFIX[statistic]
+        fn = getattr(self._lib, f"swiftgeo_perm_parallel{suffix}")
+        return self._call(fn, z, rows, cols, vals, n, n_perm, ctypes.c_uint64(seed))
 
     def perm_metal(self, z, rows, cols, vals, n, n_perm=99999, seed=12345,
-                   fallback_to_parallel=True) -> PermResult:
+                   statistic="moran", fallback_to_parallel=True) -> PermResult:
+        if statistic not in _METAL_STATS:
+            return self.perm_parallel(z, rows, cols, vals, n, n_perm, seed,
+                                      statistic=statistic)
+        suffix = _STAT_SUFFIX[statistic]
+        fn     = getattr(self._lib, f"swiftgeo_perm_metal{suffix}")
         z_c, rows_c, cols_c, vals_c = self._prep(z, rows, cols, vals)
         null = np.empty(n_perm, dtype=np.float64)
         obs, pv, el, nt = (ctypes.c_double(), ctypes.c_double(),
                            ctypes.c_double(), ctypes.c_int32())
-        # Seed truncated to UInt32; CPU paths use full UInt64
-        ok = self._lib.swiftgeo_perm_metal(
+        # Metal seed is UInt32; seeds > 2^32 are silently truncated
+        ok = fn(
             *self._weight_args(z_c, rows_c, cols_c, vals_c, n),
             ctypes.c_int32(n_perm), ctypes.c_uint32(seed & 0xFFFFFFFF),
             null.ctypes.data_as(_dbl_p),
@@ -148,6 +189,7 @@ class SwiftPerm:
         )
         if ok == 0:
             if fallback_to_parallel:
-                return self.perm_parallel(z, rows, cols, vals, n, n_perm, seed)
+                return self.perm_parallel(z, rows, cols, vals, n, n_perm, seed,
+                                          statistic=statistic)
             raise RuntimeError("Metal unavailable and fallback disabled")
         return PermResult(obs.value, null, pv.value, el.value, nt.value)

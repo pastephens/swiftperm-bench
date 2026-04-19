@@ -1,6 +1,6 @@
 // MoranPermutation.swift
-// Core permutation inference for Moran's I statistic.
-// Uses Accelerate for fast sparse dot products and concurrent permutation loop.
+// Generic permutation test infrastructure (serial + parallel).
+// Statistic functions are in Statistics.swift.
 
 import Foundation
 import Accelerate
@@ -23,20 +23,6 @@ public struct SparseWeights {
         self.n = n
         self.nnz = values.count
     }
-}
-
-// MARK: - Moran's I
-
-/// Compute Moran's I for a standardized variable z given sparse weights W.
-/// I = (1/n) * z' W z
-public func moranI(z: [Double], weights: SparseWeights) -> Double {
-    var wz = [Double](repeating: 0.0, count: weights.n)
-    for k in 0..<weights.nnz {
-        wz[Int(weights.rows[k])] += weights.values[k] * z[Int(weights.cols[k])]
-    }
-    var result = 0.0
-    vDSP_dotprD(z, 1, wz, 1, &result, vDSP_Length(weights.n))
-    return result / Double(weights.n)
 }
 
 // MARK: - Permutation result
@@ -84,15 +70,16 @@ func fisherYatesShuffle(_ array: inout [Double], rng: inout SeededRNG) {
     }
 }
 
-// MARK: - Permutation test (serial)
+// MARK: - Generic permutation test (serial)
 
-public func moranPermutationTestSerial(
+public func permutationTestSerial(
     z: [Double],
     weights: SparseWeights,
     nPermutations: Int = 99999,
-    seed: UInt64 = 12345
+    seed: UInt64 = 12345,
+    statistic: PermutationStatistic
 ) -> PermutationResult {
-    let observed = moranI(z: z, weights: weights)
+    let observed = statistic(z, weights)
     let start = Date()
 
     var nullDist = [Double](repeating: 0.0, count: nPermutations)
@@ -102,7 +89,7 @@ public func moranPermutationTestSerial(
     for p in 0..<nPermutations {
         zPerm = z
         fisherYatesShuffle(&zPerm, rng: &rng)
-        nullDist[p] = moranI(z: zPerm, weights: weights)
+        nullDist[p] = statistic(zPerm, weights)
     }
 
     let elapsed = Date().timeIntervalSince(start)
@@ -119,30 +106,29 @@ public func moranPermutationTestSerial(
     )
 }
 
-// MARK: - Permutation test (parallel via DispatchQueue.concurrentPerform)
+// MARK: - Generic permutation test (parallel via DispatchQueue.concurrentPerform)
 
-public func moranPermutationTest(
+public func permutationTest(
     z: [Double],
     weights: SparseWeights,
     nPermutations: Int = 99999,
-    seed: UInt64 = 12345
+    seed: UInt64 = 12345,
+    statistic: PermutationStatistic
 ) -> PermutationResult {
-    let observed = moranI(z: z, weights: weights)
+    let observed = statistic(z, weights)
     let start = Date()
 
-    // Pre-allocate output buffer — each index written by exactly one thread
     var nullDist = [Double](repeating: 0.0, count: nPermutations)
 
-    // Each permutation gets its own seed derived from the global seed + index,
-    // so results are deterministic regardless of thread scheduling order.
+    // Per-permutation seed: mix global seed with index for deterministic results
+    // regardless of thread scheduling order.
     nullDist.withUnsafeMutableBufferPointer { buffer in
         DispatchQueue.concurrentPerform(iterations: nPermutations) { p in
-            // Per-permutation seed: mix global seed with permutation index
             let permSeed = seed &+ UInt64(p) &* 6364136223846793005
             var rng = SeededRNG(seed: permSeed)
             var zPerm = z
             fisherYatesShuffle(&zPerm, rng: &rng)
-            buffer[p] = moranI(z: zPerm, weights: weights)
+            buffer[p] = statistic(zPerm, weights)
         }
     }
 
@@ -150,7 +136,6 @@ public func moranPermutationTest(
     let absObs = abs(observed)
     let extreme = nullDist.filter { abs($0) >= absObs }.count
     let pValue = Double(extreme) / Double(nPermutations)
-
     let nThreads = ProcessInfo.processInfo.activeProcessorCount
 
     return PermutationResult(
@@ -160,4 +145,26 @@ public func moranPermutationTest(
         elapsedSeconds: elapsed,
         nThreads: nThreads
     )
+}
+
+// MARK: - Moran's I convenience wrappers (backward compat)
+
+public func moranPermutationTestSerial(
+    z: [Double],
+    weights: SparseWeights,
+    nPermutations: Int = 99999,
+    seed: UInt64 = 12345
+) -> PermutationResult {
+    return permutationTestSerial(z: z, weights: weights,
+        nPermutations: nPermutations, seed: seed, statistic: moranI)
+}
+
+public func moranPermutationTest(
+    z: [Double],
+    weights: SparseWeights,
+    nPermutations: Int = 99999,
+    seed: UInt64 = 12345
+) -> PermutationResult {
+    return permutationTest(z: z, weights: weights,
+        nPermutations: nPermutations, seed: seed, statistic: moranI)
 }

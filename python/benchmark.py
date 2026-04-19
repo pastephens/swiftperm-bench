@@ -200,22 +200,27 @@ def benchmark_dataset(tag, z_path, w_path, n_perm, seed, dylib_path=None):
             obs_nb, _, pval_nb, elapsed_nb = nb
             results["Numba (parallel)"] = (obs_nb, pval_nb, elapsed_nb, None)
 
-    # Swift: serial, parallel, Metal — via direct ctypes binding
+    # Swift: serial, parallel, Metal — via direct ctypes binding, for each statistic
     if dylib_path is not False:
         try:
             sp = _get_swiftperm(dylib_path)
 
-            r = sp.perm_serial(z, rows, cols, values, n, n_perm=n_perm, seed=seed)
-            results["Swift serial"] = (r.observed, r.p_value, r.elapsed_seconds, None)
+            for stat, label in [("moran", "Moran's I"), ("gearysc", "Geary's C")]:
+                r = sp.perm_serial(z, rows, cols, values, n, n_perm=n_perm, seed=seed,
+                                   statistic=stat)
+                results[f"Swift serial ({label})"] = (r.observed, r.p_value, r.elapsed_seconds, None)
 
-            r = sp.perm_parallel(z, rows, cols, values, n, n_perm=n_perm, seed=seed)
-            results["Swift parallel"] = (r.observed, r.p_value, r.elapsed_seconds, None)
+                r = sp.perm_parallel(z, rows, cols, values, n, n_perm=n_perm, seed=seed,
+                                     statistic=stat)
+                results[f"Swift parallel ({label})"] = (r.observed, r.p_value, r.elapsed_seconds, None)
 
-            r = sp.perm_metal(z, rows, cols, values, n, n_perm=n_perm, seed=seed,
-                              fallback_to_parallel=False)
-            results["Swift+Metal"] = (r.observed, r.p_value, r.elapsed_seconds, None)
-        except RuntimeError as e:
-            results["Swift+Metal"] = (results.get("Swift parallel", (0,))[0], 0.0, 0.0, f"Metal N/A: {e}")
+                try:
+                    r = sp.perm_metal(z, rows, cols, values, n, n_perm=n_perm, seed=seed,
+                                      statistic=stat, fallback_to_parallel=False)
+                    results[f"Swift+Metal ({label})"] = (r.observed, r.p_value, r.elapsed_seconds, None)
+                except RuntimeError:
+                    pass  # Metal unavailable
+
         except OSError:
             pass  # dylib not built — skip Swift rows silently
 
