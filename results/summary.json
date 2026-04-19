@@ -5,22 +5,36 @@
       "NumPy": {
         "observed": 0.18009311431727298,
         "p_value": 0.04918049180491805,
-        "elapsed_s": 0.5241866249998566,
-        "throughput_perm_s": 190769.8427063593,
+        "elapsed_s": 0.3053837919724174,
+        "throughput_perm_s": 327453.52775314293,
         "note": null
       },
       "Numba (parallel)": {
         "observed": 0.18009311431727298,
         "p_value": 0.04737047370473705,
-        "elapsed_s": 0.01852041699930851,
-        "throughput_perm_s": 5399392.46528486,
+        "elapsed_s": 0.01804358302615583,
+        "throughput_perm_s": 5542081.074199191,
         "note": null
       },
-      "Swift+Metal (batched)": {
+      "Swift serial": {
+        "observed": 0.180093114317273,
+        "p_value": 0.04866048660486605,
+        "elapsed_s": 0.08349394798278809,
+        "throughput_perm_s": 1197679.6212896097,
+        "note": null
+      },
+      "Swift parallel": {
+        "observed": 0.180093114317273,
+        "p_value": 0.04883048830488305,
+        "elapsed_s": 0.021954059600830078,
+        "throughput_perm_s": 4554920.6760930475,
+        "note": null
+      },
+      "Swift+Metal": {
         "observed": 0.180093114317273,
         "p_value": 0.01880018800188002,
-        "elapsed_s": 0.006736040115356445,
-        "throughput_perm_s": 14845368.835026368,
+        "elapsed_s": 0.0074040889739990234,
+        "throughput_perm_s": 13505915.494960554,
         "note": null
       }
     },
@@ -28,22 +42,36 @@
       "NumPy": {
         "observed": 0.5082100501566094,
         "p_value": 0.0,
-        "elapsed_s": 1.3045334999987972,
-        "throughput_perm_s": 76654.98816250576,
+        "elapsed_s": 0.7453406659769826,
+        "throughput_perm_s": 134165.49581247207,
         "note": null
       },
       "Numba (parallel)": {
         "observed": 0.5082100501566086,
         "p_value": 0.0,
-        "elapsed_s": 0.5791735829989193,
-        "throughput_perm_s": 172658.0820247573,
+        "elapsed_s": 0.4097019589971751,
+        "throughput_perm_s": 244077.4270271173,
         "note": null
       },
-      "Swift+Metal (batched)": {
+      "Swift serial": {
         "observed": 0.5082100501566092,
         "p_value": 0.0,
-        "elapsed_s": 0.3397519588470459,
-        "throughput_perm_s": 294329.42885553424,
+        "elapsed_s": 1.3997939825057983,
+        "throughput_perm_s": 71438.36968136544,
+        "note": null
+      },
+      "Swift parallel": {
+        "observed": 0.5082100501566092,
+        "p_value": 0.0,
+        "elapsed_s": 0.2170640230178833,
+        "throughput_perm_s": 460688.96452620043,
+        "note": null
+      },
+      "Swift+Metal": {
+        "observed": 0.5082100501566092,
+        "p_value": 0.0,
+        "elapsed_s": 0.3423490524291992,
+        "throughput_perm_s": 292096.6168605963,
         "note": null
       }
     },
@@ -51,22 +79,36 @@
       "NumPy": {
         "observed": 0.5141519421164689,
         "p_value": 0.0,
-        "elapsed_s": 4.047203416999764,
-        "throughput_perm_s": 24708.17245804026,
+        "elapsed_s": 2.4700680000241846,
+        "throughput_perm_s": 40484.31055299729,
         "note": null
       },
       "Numba (parallel)": {
         "observed": 0.5141519421164682,
         "p_value": 0.0,
-        "elapsed_s": 1.5227890000005573,
-        "throughput_perm_s": 65668.32305720846,
+        "elapsed_s": 1.1946892910054885,
+        "throughput_perm_s": 83702.93494121611,
         "note": null
       },
-      "Swift+Metal (batched)": {
+      "Swift serial": {
         "observed": 0.5141519421164689,
         "p_value": 0.0,
-        "elapsed_s": 2.2752959728240967,
-        "throughput_perm_s": 43949.88660568905,
+        "elapsed_s": 5.606822967529297,
+        "throughput_perm_s": 17835.23406733592,
+        "note": null
+      },
+      "Swift parallel": {
+        "observed": 0.5141519421164689,
+        "p_value": 0.0,
+        "elapsed_s": 0.8405790328979492,
+        "throughput_perm_s": 118964.42343469732,
+        "note": null
+      },
+      "Swift+Metal": {
+        "observed": 0.5141519421164689,
+        "p_value": 0.0,
+        "elapsed_s": 1.6037520170211792,
+        "throughput_perm_s": 62353.156185417545,
         "note": null
       }
     },
@@ -74,22 +116,36 @@
       "NumPy": {
         "observed": 0.5307683704533364,
         "p_value": 0.0,
-        "elapsed_s": 9.254683167000621,
-        "throughput_perm_s": 10805.232139827967,
+        "elapsed_s": 5.840481874998659,
+        "throughput_perm_s": 17121.703677921774,
         "note": null
       },
       "Numba (parallel)": {
         "observed": 0.5307683704533394,
         "p_value": 0.0,
-        "elapsed_s": 3.1997780829988187,
-        "throughput_perm_s": 31251.854786842392,
+        "elapsed_s": 2.363213624979835,
+        "throughput_perm_s": 42314.83728046519,
         "note": null
       },
-      "Swift+Metal (batched)": {
+      "Swift serial": {
         "observed": 0.5307683704533365,
         "p_value": 0.0,
-        "elapsed_s": 7.892668008804321,
-        "throughput_perm_s": 12669.86016495949,
+        "elapsed_s": 13.91808795928955,
+        "throughput_perm_s": 7184.823108784582,
+        "note": null
+      },
+      "Swift parallel": {
+        "observed": 0.5307683704533365,
+        "p_value": 0.0,
+        "elapsed_s": 2.3199909925460815,
+        "throughput_perm_s": 43103.184590495235,
+        "note": null
+      },
+      "Swift+Metal": {
+        "observed": 0.5307683704533365,
+        "p_value": 0.0,
+        "elapsed_s": 4.201653003692627,
+        "throughput_perm_s": 23799.91872534828,
         "note": null
       }
     },
@@ -97,23 +153,83 @@
       "NumPy": {
         "observed": 0.5315491790191447,
         "p_value": 0.0,
-        "elapsed_s": 17.428009291999842,
-        "throughput_perm_s": 5737.832607531576,
+        "elapsed_s": 11.387696125020739,
+        "throughput_perm_s": 8781.319671876816,
         "note": null
       },
       "Numba (parallel)": {
         "observed": 0.5315491790191437,
         "p_value": 0.0,
-        "elapsed_s": 6.041709125000125,
-        "throughput_perm_s": 16551.442304001674,
+        "elapsed_s": 5.275590875011403,
+        "throughput_perm_s": 18955.033164845987,
         "note": null
       },
-      "Swift+Metal (batched)": {
+      "Swift serial": {
         "observed": 0.5315491790191447,
         "p_value": 0.0,
-        "elapsed_s": 18.353173971176147,
-        "throughput_perm_s": 5448.594349786554,
-        "note": "2 Metal batches"
+        "elapsed_s": 28.77748394012451,
+        "throughput_perm_s": 3474.9042066381335,
+        "note": null
+      },
+      "Swift parallel": {
+        "observed": 0.5315491790191447,
+        "p_value": 0.0,
+        "elapsed_s": 5.354143023490906,
+        "throughput_perm_s": 18676.938505613653,
+        "note": null
+      },
+      "Swift+Metal": {
+        "observed": 0.5315491790191447,
+        "p_value": 0.0,
+        "elapsed_s": 12.115820050239563,
+        "throughput_perm_s": 8253.589074890786,
+        "note": null
+      }
+    },
+    "Synthetic KNN (n=50,000)": {
+      "Swift serial": {
+        "observed": 0.5186942481696643,
+        "p_value": 0.0,
+        "elapsed_s": 139.7529489994049,
+        "throughput_perm_s": 715.5412513007208,
+        "note": null
+      },
+      "Swift parallel": {
+        "observed": 0.5186942481696643,
+        "p_value": 0.0,
+        "elapsed_s": 25.425729990005493,
+        "throughput_perm_s": 3932.9844232322234,
+        "note": null
+      },
+      "Swift+Metal": {
+        "observed": 0.5186942481696643,
+        "p_value": 0.0,
+        "elapsed_s": 98.96608603000641,
+        "throughput_perm_s": 1010.4370498160391,
+        "note": null
+      }
+    },
+    "Synthetic KNN (n=100,000)": {
+      "Swift serial": {
+        "observed": 0.513078220226259,
+        "p_value": 0.0,
+        "elapsed_s": 348.70403599739075,
+        "throughput_perm_s": 286.77327956349853,
+        "note": null
+      },
+      "Swift parallel": {
+        "observed": 0.513078220226259,
+        "p_value": 0.0,
+        "elapsed_s": 93.16697907447815,
+        "throughput_perm_s": 1073.3309268304201,
+        "note": null
+      },
+      "Swift+Metal": {
+        "observed": 0.513078220226259,
+        "p_value": 0.0,
+        "elapsed_s": 235.97285294532776,
+        "throughput_perm_s": 423.7733228710365,
+        "note": null
       }
     }
   }

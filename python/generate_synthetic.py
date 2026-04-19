@@ -22,7 +22,7 @@ from pathlib import Path
 from scipy.spatial import KDTree
 
 DATA_DIR = Path(__file__).parent.parent / "data"
-SIZES = [500, 2000, 5000, 10000]
+SIZES = [500, 2000, 5000, 10000, 50000, 100000]
 K = 8
 SEED = 42
 

@@ -188,15 +188,17 @@ def benchmark_dataset(tag, z_path, w_path, n_perm, seed, dylib_path=None):
 
     results = {}
 
-    # NumPy
-    obs, _, pval, elapsed = moran_perm_numpy(z, W, n_perm=n_perm, seed=seed)
-    results["NumPy"] = (obs, pval, elapsed, None)
+    # NumPy — skip for n > 10,000 (would take several minutes)
+    if n <= 10000:
+        obs, _, pval, elapsed = moran_perm_numpy(z, W, n_perm=n_perm, seed=seed)
+        results["NumPy"] = (obs, pval, elapsed, None)
 
-    # Numba
-    nb = moran_perm_numba(z, rows, cols, values, n, n_perm=n_perm, seed=seed)
-    if nb:
-        obs_nb, _, pval_nb, elapsed_nb = nb
-        results["Numba (parallel)"] = (obs_nb, pval_nb, elapsed_nb, None)
+    # Numba — skip for n > 10,000
+    if n <= 10000:
+        nb = moran_perm_numba(z, rows, cols, values, n, n_perm=n_perm, seed=seed)
+        if nb:
+            obs_nb, _, pval_nb, elapsed_nb = nb
+            results["Numba (parallel)"] = (obs_nb, pval_nb, elapsed_nb, None)
 
     # Swift: serial, parallel, Metal — via direct ctypes binding
     if dylib_path is not False:
