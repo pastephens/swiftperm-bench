@@ -1,0 +1,89 @@
+{
+  "n_permutations": 999,
+  "skip_local_above": 50,
+  "generated_at": "2026-04-19T05:29:45.611514+00:00",
+  "datasets": {
+    "Columbus (n=49)": {
+      "esda Moran's I": {
+        "observed": 0.180093114317273,
+        "p_sim": 0.021,
+        "elapsed_s": 0.004878624982666224,
+        "n_perm": 999
+      },
+      "esda Geary's C": {
+        "observed": 0.8060863971220947,
+        "p_sim": 0.043,
+        "elapsed_s": 0.004084625048562884,
+        "n_perm": 999
+      },
+      "esda Local Moran's I": {
+        "elapsed_s": 16.67655824997928,
+        "n_perm": 999,
+        "mean_observed": 0.17641774463732865,
+        "mean_p_sim": 0.2232857142857143
+      },
+      "esda Local Geary's C": {
+        "elapsed_s": 1.9278096670168452,
+        "n_perm": 999,
+        "mean_observed": 1.645759727457611,
+        "mean_p_sim": 0.2173469513654709
+      }
+    },
+    "NCOVR (n=3,085)": {
+      "esda Moran's I": {
+        "observed": 0.3833136112063327,
+        "p_sim": 0.001,
+        "elapsed_s": 0.058323167031630874,
+        "n_perm": 999
+      },
+      "esda Geary's C": {
+        "observed": 0.6014702718685434,
+        "p_sim": 0.001,
+        "elapsed_s": 0.10241929104086012,
+        "n_perm": 999
+      }
+    },
+    "King County WA (n=21,613)": {
+      "esda Moran's I": {
+        "observed": 0.7168060984503423,
+        "p_sim": 0.001,
+        "elapsed_s": 0.40399954200256616,
+        "n_perm": 999
+      },
+      "esda Geary's C": {
+        "observed": 0.2662881486444781,
+        "p_sim": 0.001,
+        "elapsed_s": 0.8509644159930758,
+        "n_perm": 999
+      }
+    },
+    "US SDOH (n=71,901)": {
+      "esda Moran's I": {
+        "observed": 0.5355936591635445,
+        "p_sim": 0.001,
+        "elapsed_s": 1.2088846659753472,
+        "n_perm": 999
+      },
+      "esda Geary's C": {
+        "observed": 0.5028826208940534,
+        "p_sim": 0.001,
+        "elapsed_s": 2.644712208013516,
+        "n_perm": 999
+      }
+    },
+    "NYC Earnings (n=108,487)": {
+      "esda Moran's I": {
+        "observed": 0.41509012448506,
+        "p_sim": 0.001,
+        "elapsed_s": 1.749787707987707,
+        "n_perm": 999
+      },
+      "esda Geary's C": {
+        "observed": 0.5735170839794834,
+        "p_sim": 0.001,
+        "elapsed_s": 3.7560030419845134,
+        "n_perm": 999
+      }
+    }
+  }
+}

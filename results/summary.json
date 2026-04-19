@@ -1,234 +1,279 @@
 {
-  "n_permutations": 99999,
+  "n_permutations": 999,
   "datasets": {
     "Columbus (n=49)": {
+      "esda Moran's I": {
+        "observed": 0.180093114317273,
+        "p_value": 0.021,
+        "elapsed_s": 0.004878624982666224,
+        "throughput_perm_s": 204770.8121754493,
+        "note": "baseline n_perm=999"
+      },
+      "esda Geary's C": {
+        "observed": 0.8060863971220947,
+        "p_value": 0.043,
+        "elapsed_s": 0.004084625048562884,
+        "throughput_perm_s": 244575.69253547117,
+        "note": "baseline n_perm=999"
+      },
       "NumPy": {
         "observed": 0.18009311431727298,
-        "p_value": 0.04918049180491805,
-        "elapsed_s": 0.3053837919724174,
-        "throughput_perm_s": 327453.52775314293,
+        "p_value": 0.05205205205205205,
+        "elapsed_s": 0.0031529999687336385,
+        "throughput_perm_s": 316841.10685267,
         "note": null
       },
       "Numba (parallel)": {
         "observed": 0.18009311431727298,
-        "p_value": 0.04737047370473705,
-        "elapsed_s": 0.01804358302615583,
-        "throughput_perm_s": 5542081.074199191,
+        "p_value": 0.044044044044044044,
+        "elapsed_s": 0.0002716250019147992,
+        "throughput_perm_s": 3677864.677248514,
         "note": null
       },
-      "Swift serial": {
+      "Swift serial (Moran's I)": {
         "observed": 0.180093114317273,
-        "p_value": 0.04866048660486605,
-        "elapsed_s": 0.08349394798278809,
-        "throughput_perm_s": 1197679.6212896097,
+        "p_value": 0.05005005005005005,
+        "elapsed_s": 0.0008980035781860352,
+        "throughput_perm_s": 1112467.7275985663,
         "note": null
       },
-      "Swift parallel": {
+      "Swift parallel (Moran's I)": {
         "observed": 0.180093114317273,
-        "p_value": 0.04883048830488305,
-        "elapsed_s": 0.021954059600830078,
-        "throughput_perm_s": 4554920.6760930475,
+        "p_value": 0.04804804804804805,
+        "elapsed_s": 0.0003260374069213867,
+        "throughput_perm_s": 3064065.5912248627,
         "note": null
       },
-      "Swift+Metal": {
+      "Swift+Metal (Moran's I)": {
         "observed": 0.180093114317273,
-        "p_value": 0.01880018800188002,
-        "elapsed_s": 0.0074040889739990234,
-        "throughput_perm_s": 13505915.494960554,
+        "p_value": 0.04504504504504504,
+        "elapsed_s": 0.00235593318939209,
+        "throughput_perm_s": 424035.79375600873,
+        "note": null
+      },
+      "Swift serial (Geary's C)": {
+        "observed": 0.8060863971220946,
+        "p_value": 0.9669669669669669,
+        "elapsed_s": 0.00043201446533203125,
+        "throughput_perm_s": 2312422.569536424,
+        "note": null
+      },
+      "Swift parallel (Geary's C)": {
+        "observed": 0.8060863971220946,
+        "p_value": 0.963963963963964,
+        "elapsed_s": 0.0002949237823486328,
+        "throughput_perm_s": 3387315.841552142,
+        "note": null
+      },
+      "Swift+Metal (Geary's C)": {
+        "observed": 0.8060863971220946,
+        "p_value": 0.9629629629629629,
+        "elapsed_s": 0.001679062843322754,
+        "throughput_perm_s": 594974.7527156549,
         "note": null
       }
     },
-    "Synthetic KNN (n=500)": {
-      "NumPy": {
-        "observed": 0.5082100501566094,
+    "King County WA (n=21,613)": {
+      "esda Moran's I": {
+        "observed": 0.7168060984503423,
+        "p_value": 0.001,
+        "elapsed_s": 0.40399954200256616,
+        "throughput_perm_s": 2472.775080506538,
+        "note": "baseline n_perm=999"
+      },
+      "esda Geary's C": {
+        "observed": 0.2662881486444781,
+        "p_value": 0.001,
+        "elapsed_s": 0.8509644159930758,
+        "throughput_perm_s": 1173.9621319349371,
+        "note": "baseline n_perm=999"
+      },
+      "Swift serial (Moran's I)": {
+        "observed": 0.7168060984503422,
         "p_value": 0.0,
-        "elapsed_s": 0.7453406659769826,
-        "throughput_perm_s": 134165.49581247207,
+        "elapsed_s": 0.6018699407577515,
+        "throughput_perm_s": 1659.8270362900391,
+        "note": null
+      },
+      "Swift parallel (Moran's I)": {
+        "observed": 0.7168060984503422,
+        "p_value": 0.0,
+        "elapsed_s": 0.09045207500457764,
+        "throughput_perm_s": 11044.522748089994,
+        "note": null
+      },
+      "Swift+Metal (Moran's I)": {
+        "observed": 0.7168060984503422,
+        "p_value": 0.0,
+        "elapsed_s": 0.2626389265060425,
+        "throughput_perm_s": 3803.7012003131845,
+        "note": null
+      },
+      "Swift serial (Geary's C)": {
+        "observed": 0.2662881486444637,
+        "p_value": 1.0,
+        "elapsed_s": 0.19730699062347412,
+        "throughput_perm_s": 5063.175900880353,
+        "note": null
+      },
+      "Swift parallel (Geary's C)": {
+        "observed": 0.2662881486444637,
+        "p_value": 1.0,
+        "elapsed_s": 0.0369640588760376,
+        "throughput_perm_s": 27026.252808173453,
+        "note": null
+      },
+      "Swift+Metal (Geary's C)": {
+        "observed": 0.2662881486444637,
+        "p_value": 1.0,
+        "elapsed_s": 0.26219797134399414,
+        "throughput_perm_s": 3810.0981288270477,
+        "note": null
+      }
+    },
+    "NCOVR US Counties (n=3,085)": {
+      "NumPy": {
+        "observed": 0.38331361120633284,
+        "p_value": 0.0,
+        "elapsed_s": 0.048508083971682936,
+        "throughput_perm_s": 20594.505455692208,
         "note": null
       },
       "Numba (parallel)": {
-        "observed": 0.5082100501566086,
+        "observed": 0.3833136112063323,
         "p_value": 0.0,
-        "elapsed_s": 0.4097019589971751,
-        "throughput_perm_s": 244077.4270271173,
+        "elapsed_s": 0.21651637501781806,
+        "throughput_perm_s": 4613.96972823782,
         "note": null
       },
-      "Swift serial": {
-        "observed": 0.5082100501566092,
+      "Swift serial (Moran's I)": {
+        "observed": 0.3833136112063327,
         "p_value": 0.0,
-        "elapsed_s": 1.3997939825057983,
-        "throughput_perm_s": 71438.36968136544,
+        "elapsed_s": 0.05243802070617676,
+        "throughput_perm_s": 19051.062312165534,
         "note": null
       },
-      "Swift parallel": {
-        "observed": 0.5082100501566092,
+      "Swift parallel (Moran's I)": {
+        "observed": 0.3833136112063327,
         "p_value": 0.0,
-        "elapsed_s": 0.2170640230178833,
-        "throughput_perm_s": 460688.96452620043,
+        "elapsed_s": 0.008679986000061035,
+        "throughput_perm_s": 115092.35153063327,
         "note": null
       },
-      "Swift+Metal": {
-        "observed": 0.5082100501566092,
+      "Swift+Metal (Moran's I)": {
+        "observed": 0.3833136112063327,
         "p_value": 0.0,
-        "elapsed_s": 0.3423490524291992,
-        "throughput_perm_s": 292096.6168605963,
+        "elapsed_s": 0.011678934097290039,
+        "throughput_perm_s": 85538.62806981729,
+        "note": null
+      },
+      "Swift serial (Geary's C)": {
+        "observed": 0.6014702718685442,
+        "p_value": 1.0,
+        "elapsed_s": 0.019665956497192383,
+        "throughput_perm_s": 50798.444517184944,
+        "note": null
+      },
+      "Swift parallel (Geary's C)": {
+        "observed": 0.6014702718685442,
+        "p_value": 1.0,
+        "elapsed_s": 0.0035910606384277344,
+        "throughput_perm_s": 278190.791129996,
+        "note": null
+      },
+      "Swift+Metal (Geary's C)": {
+        "observed": 0.6014702718685442,
+        "p_value": 1.0,
+        "elapsed_s": 0.011948943138122559,
+        "throughput_perm_s": 83605.72047687933,
         "note": null
       }
     },
-    "Synthetic KNN (n=2,000)": {
-      "NumPy": {
-        "observed": 0.5141519421164689,
+    "US SDOH Tracts (n=71,901)": {
+      "Swift serial (Moran's I)": {
+        "observed": 0.5355936591635448,
         "p_value": 0.0,
-        "elapsed_s": 2.4700680000241846,
-        "throughput_perm_s": 40484.31055299729,
+        "elapsed_s": 1.9942169189453125,
+        "throughput_perm_s": 500.9485129272417,
         "note": null
       },
-      "Numba (parallel)": {
-        "observed": 0.5141519421164682,
+      "Swift parallel (Moran's I)": {
+        "observed": 0.5355936591635448,
         "p_value": 0.0,
-        "elapsed_s": 1.1946892910054885,
-        "throughput_perm_s": 83702.93494121611,
+        "elapsed_s": 0.3050220012664795,
+        "throughput_perm_s": 3275.173580437017,
         "note": null
       },
-      "Swift serial": {
-        "observed": 0.5141519421164689,
+      "Swift+Metal (Moran's I)": {
+        "observed": 0.5355936591635448,
         "p_value": 0.0,
-        "elapsed_s": 5.606822967529297,
-        "throughput_perm_s": 17835.23406733592,
+        "elapsed_s": 0.525056004524231,
+        "throughput_perm_s": 1902.654176682017,
         "note": null
       },
-      "Swift parallel": {
-        "observed": 0.5141519421164689,
-        "p_value": 0.0,
-        "elapsed_s": 0.8405790328979492,
-        "throughput_perm_s": 118964.42343469732,
+      "Swift serial (Geary's C)": {
+        "observed": 0.502882620893933,
+        "p_value": 1.0,
+        "elapsed_s": 0.6117540597915649,
+        "throughput_perm_s": 1633.0091872874148,
         "note": null
       },
-      "Swift+Metal": {
-        "observed": 0.5141519421164689,
-        "p_value": 0.0,
-        "elapsed_s": 1.6037520170211792,
-        "throughput_perm_s": 62353.156185417545,
+      "Swift parallel (Geary's C)": {
+        "observed": 0.502882620893933,
+        "p_value": 1.0,
+        "elapsed_s": 0.12316107749938965,
+        "throughput_perm_s": 8111.328840923389,
+        "note": null
+      },
+      "Swift+Metal (Geary's C)": {
+        "observed": 0.502882620893933,
+        "p_value": 1.0,
+        "elapsed_s": 0.5214450359344482,
+        "throughput_perm_s": 1915.8299171642436,
         "note": null
       }
     },
-    "Synthetic KNN (n=5,000)": {
-      "NumPy": {
-        "observed": 0.5307683704533364,
+    "NYC Earnings Blocks (n=108,487)": {
+      "Swift serial (Moran's I)": {
+        "observed": 0.4150901244850592,
         "p_value": 0.0,
-        "elapsed_s": 5.840481874998659,
-        "throughput_perm_s": 17121.703677921774,
+        "elapsed_s": 3.007270932197571,
+        "throughput_perm_s": 332.19487785557726,
         "note": null
       },
-      "Numba (parallel)": {
-        "observed": 0.5307683704533394,
+      "Swift parallel (Moran's I)": {
+        "observed": 0.4150901244850592,
         "p_value": 0.0,
-        "elapsed_s": 2.363213624979835,
-        "throughput_perm_s": 42314.83728046519,
+        "elapsed_s": 0.5005550384521484,
+        "throughput_perm_s": 1995.7845256920762,
         "note": null
       },
-      "Swift serial": {
-        "observed": 0.5307683704533365,
+      "Swift+Metal (Moran's I)": {
+        "observed": 0.4150901244850592,
         "p_value": 0.0,
-        "elapsed_s": 13.91808795928955,
-        "throughput_perm_s": 7184.823108784582,
+        "elapsed_s": 1.2182880640029907,
+        "throughput_perm_s": 820.0031088850491,
         "note": null
       },
-      "Swift parallel": {
-        "observed": 0.5307683704533365,
-        "p_value": 0.0,
-        "elapsed_s": 2.3199909925460815,
-        "throughput_perm_s": 43103.184590495235,
+      "Swift serial (Geary's C)": {
+        "observed": 0.5735170839793526,
+        "p_value": 1.0,
+        "elapsed_s": 0.9398789405822754,
+        "throughput_perm_s": 1062.9028451058791,
         "note": null
       },
-      "Swift+Metal": {
-        "observed": 0.5307683704533365,
-        "p_value": 0.0,
-        "elapsed_s": 4.201653003692627,
-        "throughput_perm_s": 23799.91872534828,
-        "note": null
-      }
-    },
-    "Synthetic KNN (n=10,000)": {
-      "NumPy": {
-        "observed": 0.5315491790191447,
-        "p_value": 0.0,
-        "elapsed_s": 11.387696125020739,
-        "throughput_perm_s": 8781.319671876816,
+      "Swift parallel (Geary's C)": {
+        "observed": 0.5735170839793526,
+        "p_value": 1.0,
+        "elapsed_s": 0.2107861042022705,
+        "throughput_perm_s": 4739.401602305619,
         "note": null
       },
-      "Numba (parallel)": {
-        "observed": 0.5315491790191437,
-        "p_value": 0.0,
-        "elapsed_s": 5.275590875011403,
-        "throughput_perm_s": 18955.033164845987,
-        "note": null
-      },
-      "Swift serial": {
-        "observed": 0.5315491790191447,
-        "p_value": 0.0,
-        "elapsed_s": 28.77748394012451,
-        "throughput_perm_s": 3474.9042066381335,
-        "note": null
-      },
-      "Swift parallel": {
-        "observed": 0.5315491790191447,
-        "p_value": 0.0,
-        "elapsed_s": 5.354143023490906,
-        "throughput_perm_s": 18676.938505613653,
-        "note": null
-      },
-      "Swift+Metal": {
-        "observed": 0.5315491790191447,
-        "p_value": 0.0,
-        "elapsed_s": 12.115820050239563,
-        "throughput_perm_s": 8253.589074890786,
-        "note": null
-      }
-    },
-    "Synthetic KNN (n=50,000)": {
-      "Swift serial": {
-        "observed": 0.5186942481696643,
-        "p_value": 0.0,
-        "elapsed_s": 139.7529489994049,
-        "throughput_perm_s": 715.5412513007208,
-        "note": null
-      },
-      "Swift parallel": {
-        "observed": 0.5186942481696643,
-        "p_value": 0.0,
-        "elapsed_s": 25.425729990005493,
-        "throughput_perm_s": 3932.9844232322234,
-        "note": null
-      },
-      "Swift+Metal": {
-        "observed": 0.5186942481696643,
-        "p_value": 0.0,
-        "elapsed_s": 98.96608603000641,
-        "throughput_perm_s": 1010.4370498160391,
-        "note": null
-      }
-    },
-    "Synthetic KNN (n=100,000)": {
-      "Swift serial": {
-        "observed": 0.513078220226259,
-        "p_value": 0.0,
-        "elapsed_s": 348.70403599739075,
-        "throughput_perm_s": 286.77327956349853,
-        "note": null
-      },
-      "Swift parallel": {
-        "observed": 0.513078220226259,
-        "p_value": 0.0,
-        "elapsed_s": 93.16697907447815,
-        "throughput_perm_s": 1073.3309268304201,
-        "note": null
-      },
-      "Swift+Metal": {
-        "observed": 0.513078220226259,
-        "p_value": 0.0,
-        "elapsed_s": 235.97285294532776,
-        "throughput_perm_s": 423.7733228710365,
+      "Swift+Metal (Geary's C)": {
+        "observed": 0.5735170839793526,
+        "p_value": 1.0,
+        "elapsed_s": 1.214827060699463,
+        "throughput_perm_s": 822.3392714225547,
         "note": null
       }
     }
