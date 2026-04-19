@@ -68,6 +68,26 @@ _METAL_STATS = {"moran", "gearysc"}
 _lib = None
 
 
+def w_to_coo(w):
+    """Extract contiguous int32/float64 COO arrays from a libpysal W object.
+
+    Returns (rows, cols, vals) as numpy arrays ready to pass to SwiftPerm methods.
+    This is the interop bridge between libpysal and the Swift backend.
+    """
+    id_order  = w.id_order
+    id_to_idx = {id_: i for i, id_ in enumerate(id_order)}
+    rows, cols, vals = [], [], []
+    for focal_id, neighbors in w.neighbors.items():
+        i = id_to_idx[focal_id]
+        for neighbor_id, wval in zip(neighbors, w.weights[focal_id]):
+            rows.append(i)
+            cols.append(id_to_idx[neighbor_id])
+            vals.append(wval)
+    return (np.ascontiguousarray(rows, dtype=np.int32),
+            np.ascontiguousarray(cols, dtype=np.int32),
+            np.ascontiguousarray(vals, dtype=np.float64))
+
+
 def _load_lib(dylib_path=None):
     global _lib
     if _lib is not None:
@@ -75,6 +95,12 @@ def _load_lib(dylib_path=None):
 
     path = dylib_path or os.environ.get("SWIFTGEO_DYLIB") or str(_DEFAULT_DYLIB)
     lib = ctypes.CDLL(str(path))
+
+    # Spatial lag (serial + parallel) — output buffer instead of scalar
+    for name in ("swiftgeo_spatial_lag", "swiftgeo_spatial_lag_parallel"):
+        fn = getattr(lib, name)
+        fn.restype  = None
+        fn.argtypes = _WEIGHT_ARGS + [_dbl_p]   # out_wy
 
     # Point estimate functions
     for name, restype in [("swiftgeo_moran_i", ctypes.c_double),
@@ -143,6 +169,25 @@ class SwiftPerm:
             ctypes.byref(el),  ctypes.byref(nt),
         )
         return PermResult(obs.value, null, pv.value, el.value, nt.value)
+
+    def spatial_lag(self, y, rows, cols, vals, n, parallel=True) -> np.ndarray:
+        """Compute the spatial lag W·y.
+
+        Parameters match the permutation methods. For libpysal W objects use
+        w_to_coo(w) to extract rows/cols/vals first.
+
+        Falls back to scipy sparse multiply if the dylib is unavailable — call
+        this via the module-level spatial_lag() convenience function for that.
+        """
+        y_c, rows_c, cols_c, vals_c = self._prep(y, rows, cols, vals)
+        wy = np.empty(n, dtype=np.float64)
+        fn = (self._lib.swiftgeo_spatial_lag_parallel if parallel
+              else self._lib.swiftgeo_spatial_lag)
+        fn(
+            *self._weight_args(y_c, rows_c, cols_c, vals_c, n),
+            wy.ctypes.data_as(_dbl_p),
+        )
+        return wy
 
     def moran_i(self, z, rows, cols, vals, n) -> float:
         z_c, rows_c, cols_c, vals_c = self._prep(z, rows, cols, vals)

@@ -117,6 +117,36 @@ public func swiftgeo_perm_metal(
     return 1
 }
 
+// MARK: - Spatial lag
+
+@_cdecl("swiftgeo_spatial_lag")
+public func swiftgeo_spatial_lag(
+    y_ptr:    UnsafePointer<Double>, y_len: Int32,
+    rows_ptr: UnsafePointer<Int32>,
+    cols_ptr: UnsafePointer<Int32>,
+    vals_ptr: UnsafePointer<Double>, nnz: Int32, n: Int32,
+    out_wy:   UnsafeMutablePointer<Double>
+) {
+    let y  = Array(UnsafeBufferPointer(start: y_ptr, count: Int(y_len)))
+    let wy = spatialLag(y: y, weights: makeWeights(rows_ptr: rows_ptr, cols_ptr: cols_ptr,
+                                                    vals_ptr: vals_ptr, nnz: nnz, n: n))
+    out_wy.initialize(from: wy, count: wy.count)
+}
+
+@_cdecl("swiftgeo_spatial_lag_parallel")
+public func swiftgeo_spatial_lag_parallel(
+    y_ptr:    UnsafePointer<Double>, y_len: Int32,
+    rows_ptr: UnsafePointer<Int32>,
+    cols_ptr: UnsafePointer<Int32>,
+    vals_ptr: UnsafePointer<Double>, nnz: Int32, n: Int32,
+    out_wy:   UnsafeMutablePointer<Double>
+) {
+    let y  = Array(UnsafeBufferPointer(start: y_ptr, count: Int(y_len)))
+    let wy = spatialLagParallel(y: y, weights: makeWeights(rows_ptr: rows_ptr, cols_ptr: cols_ptr,
+                                                            vals_ptr: vals_ptr, nnz: nnz, n: n))
+    out_wy.initialize(from: wy, count: wy.count)
+}
+
 // MARK: - Geary's C
 
 @_cdecl("swiftgeo_gearysc")
