@@ -26,5 +26,19 @@
     "nnz": 80000,
     "weights_type": "KNN k=8, row-standardized",
     "reference_morans_i": 0.5315491790191447
+  },
+  "50000": {
+    "n": 50000,
+    "k": 8,
+    "nnz": 400000,
+    "weights_type": "KNN k=8, row-standardized",
+    "reference_morans_i": 0.5186942481696641
+  },
+  "100000": {
+    "n": 100000,
+    "k": 8,
+    "nnz": 800000,
+    "weights_type": "KNN k=8, row-standardized",
+    "reference_morans_i": 0.513078220226259
   }
 }
