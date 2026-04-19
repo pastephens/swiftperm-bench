@@ -96,13 +96,18 @@ def _load_lib(dylib_path=None):
     path = dylib_path or os.environ.get("SWIFTGEO_DYLIB") or str(_DEFAULT_DYLIB)
     lib = ctypes.CDLL(str(path))
 
-    # Local Moran's I point estimates — writes n doubles
-    fn = lib.swiftgeo_local_moran_i
-    fn.restype  = None
-    fn.argtypes = _WEIGHT_ARGS + [_dbl_p]
+    # Local point estimates — writes n doubles
+    for name in ("swiftgeo_local_moran_i", "swiftgeo_local_gearysc"):
+        fn = getattr(lib, name)
+        fn.restype  = None
+        fn.argtypes = _WEIGHT_ARGS + [_dbl_p]
 
     # Local permutation tests — writes n observed + n p-values + elapsed + nthreads
-    for name in ("swiftgeo_local_perm_serial", "swiftgeo_local_perm_parallel"):
+    _local_perm_names = (
+        "swiftgeo_local_perm_serial",    "swiftgeo_local_perm_parallel",
+        "swiftgeo_local_perm_serial_gearysc", "swiftgeo_local_perm_parallel_gearysc",
+    )
+    for name in _local_perm_names:
         fn = getattr(lib, name)
         fn.restype  = None
         fn.argtypes = _WEIGHT_ARGS + [ctypes.c_int32, ctypes.c_uint64,
@@ -215,14 +220,28 @@ class SwiftPerm:
         return LocalPermResult(observed, p_values, el.value, nt.value)
 
     def local_perm_serial(self, z, rows, cols, vals, n,
-                          n_perm=9999, seed=12345) -> LocalPermResult:
-        return self._call_local(self._lib.swiftgeo_local_perm_serial,
-                                z, rows, cols, vals, n, n_perm, seed)
+                          n_perm=9999, seed=12345,
+                          statistic="moran") -> LocalPermResult:
+        suffix = "" if statistic == "moran" else f"_{statistic}"
+        fn = getattr(self._lib, f"swiftgeo_local_perm_serial{suffix}")
+        return self._call_local(fn, z, rows, cols, vals, n, n_perm, seed)
 
     def local_perm_parallel(self, z, rows, cols, vals, n,
-                            n_perm=9999, seed=12345) -> LocalPermResult:
-        return self._call_local(self._lib.swiftgeo_local_perm_parallel,
-                                z, rows, cols, vals, n, n_perm, seed)
+                            n_perm=9999, seed=12345,
+                            statistic="moran") -> LocalPermResult:
+        suffix = "" if statistic == "moran" else f"_{statistic}"
+        fn = getattr(self._lib, f"swiftgeo_local_perm_parallel{suffix}")
+        return self._call_local(fn, z, rows, cols, vals, n, n_perm, seed)
+
+    def local_gearysc(self, z, rows, cols, vals, n) -> np.ndarray:
+        """Point estimates: returns array of n local Geary's C values."""
+        z_c, rows_c, cols_c, vals_c = self._prep(z, rows, cols, vals)
+        out = np.empty(n, dtype=np.float64)
+        self._lib.swiftgeo_local_gearysc(
+            *self._weight_args(z_c, rows_c, cols_c, vals_c, n),
+            out.ctypes.data_as(_dbl_p),
+        )
+        return out
 
     def spatial_lag(self, y, rows, cols, vals, n, parallel=True) -> np.ndarray:
         """Compute the spatial lag W·y.

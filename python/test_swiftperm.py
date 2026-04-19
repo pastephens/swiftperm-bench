@@ -280,6 +280,62 @@ class TestLocalMoranI:
 
 
 # ---------------------------------------------------------------------------
+# Local Geary's C
+# ---------------------------------------------------------------------------
+
+class TestLocalGearysC:
+    def test_point_estimates_match_reference(self, sp, dataset):
+        """local_gearysc(z)[i] == Σⱼ w[i,j] * (z[i] - z[j])²"""
+        d = dataset
+        ref = np.zeros(d["n"])
+        for k in range(len(d["vals"])):
+            diff = d["z"][d["rows"][k]] - d["z"][d["cols"][k]]
+            ref[d["rows"][k]] += d["vals"][k] * diff * diff
+        got = sp.local_gearysc(d["z"], d["rows"], d["cols"], d["vals"], d["n"])
+        np.testing.assert_allclose(got, ref, atol=1e-12,
+            err_msg=f"Local Geary's C mismatch on {d['name']}")
+
+    def test_all_nonnegative(self, sp, dataset):
+        d = dataset
+        got = sp.local_gearysc(d["z"], d["rows"], d["cols"], d["vals"], d["n"])
+        assert np.all(got >= 0), f"Local Geary's C has negative values on {d['name']}"
+
+    def test_serial_parallel_observed_agree(self, sp, dataset):
+        d = dataset
+        r_s = sp.local_perm_serial(d["z"], d["rows"], d["cols"], d["vals"], d["n"],
+                                    n_perm=N_PERM_FAST, statistic="gearysc")
+        r_p = sp.local_perm_parallel(d["z"], d["rows"], d["cols"], d["vals"], d["n"],
+                                      n_perm=N_PERM_FAST, statistic="gearysc")
+        np.testing.assert_allclose(r_s.observed, r_p.observed, atol=1e-12,
+            err_msg=f"Local Geary's C observed mismatch on {d['name']}")
+
+    def test_observed_matches_point_estimate(self, sp, dataset):
+        d = dataset
+        ref = sp.local_gearysc(d["z"], d["rows"], d["cols"], d["vals"], d["n"])
+        r   = sp.local_perm_parallel(d["z"], d["rows"], d["cols"], d["vals"], d["n"],
+                                      n_perm=N_PERM_FAST, statistic="gearysc")
+        np.testing.assert_allclose(r.observed, ref, atol=1e-12,
+            err_msg=f"Local Geary's C perm observed != point estimate on {d['name']}")
+
+    def test_pvalues_in_unit_interval(self, sp, dataset):
+        d = dataset
+        r = sp.local_perm_parallel(d["z"], d["rows"], d["cols"], d["vals"], d["n"],
+                                    n_perm=N_PERM_FAST, statistic="gearysc")
+        assert np.all(r.p_values >= 0.0) and np.all(r.p_values <= 1.0), \
+            f"Local Geary's C p-values out of [0,1] on {d['name']}"
+
+    def test_serial_parallel_pvalues_close(self, sp, dataset):
+        d = dataset
+        r_s = sp.local_perm_serial(d["z"], d["rows"], d["cols"], d["vals"], d["n"],
+                                    n_perm=N_PERM_PVAL, statistic="gearysc")
+        r_p = sp.local_perm_parallel(d["z"], d["rows"], d["cols"], d["vals"], d["n"],
+                                      n_perm=N_PERM_PVAL, statistic="gearysc")
+        mean_diff = float(np.mean(np.abs(r_s.p_values - r_p.p_values)))
+        assert mean_diff < 0.05, \
+            f"Local Geary's C p-values mean diff={mean_diff:.4f} on {d['name']}"
+
+
+# ---------------------------------------------------------------------------
 # w_to_coo interop utility
 # ---------------------------------------------------------------------------
 
