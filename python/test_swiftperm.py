@@ -222,6 +222,64 @@ class TestPermPValues:
 
 
 # ---------------------------------------------------------------------------
+# Local Moran's I (LISA)
+# ---------------------------------------------------------------------------
+
+class TestLocalMoranI:
+    def test_point_estimates_match_reference(self, sp, dataset):
+        """local_moran_i(z) == z * W.dot(z) element-wise."""
+        d = dataset
+        from scipy.sparse import csr_matrix
+        W   = csr_matrix((d["vals"], (d["rows"], d["cols"])), shape=(d["n"], d["n"]))
+        ref = d["z"] * W.dot(d["z"])
+        got = sp.local_moran_i(d["z"], d["rows"], d["cols"], d["vals"], d["n"])
+        np.testing.assert_allclose(got, ref, atol=1e-12,
+            err_msg=f"Local Moran's I mismatch on {d['name']}")
+
+    def test_serial_parallel_observed_agree(self, sp, dataset):
+        d = dataset
+        r_s = sp.local_perm_serial(d["z"], d["rows"], d["cols"], d["vals"], d["n"],
+                                    n_perm=N_PERM_FAST)
+        r_p = sp.local_perm_parallel(d["z"], d["rows"], d["cols"], d["vals"], d["n"],
+                                      n_perm=N_PERM_FAST)
+        np.testing.assert_allclose(r_s.observed, r_p.observed, atol=1e-12,
+            err_msg=f"Local Moran's I observed mismatch on {d['name']}")
+
+    def test_observed_matches_point_estimate(self, sp, dataset):
+        d = dataset
+        ref = sp.local_moran_i(d["z"], d["rows"], d["cols"], d["vals"], d["n"])
+        r   = sp.local_perm_parallel(d["z"], d["rows"], d["cols"], d["vals"], d["n"],
+                                      n_perm=N_PERM_FAST)
+        np.testing.assert_allclose(r.observed, ref, atol=1e-12,
+            err_msg=f"Local Moran's I perm observed != point estimate on {d['name']}")
+
+    def test_output_shapes(self, sp, dataset):
+        d = dataset
+        r = sp.local_perm_parallel(d["z"], d["rows"], d["cols"], d["vals"], d["n"],
+                                    n_perm=N_PERM_FAST)
+        assert r.observed.shape == (d["n"],), f"observed shape wrong on {d['name']}"
+        assert r.p_values.shape  == (d["n"],), f"p_values shape wrong on {d['name']}"
+
+    def test_pvalues_in_unit_interval(self, sp, dataset):
+        d = dataset
+        r = sp.local_perm_parallel(d["z"], d["rows"], d["cols"], d["vals"], d["n"],
+                                    n_perm=N_PERM_FAST)
+        assert np.all(r.p_values >= 0.0) and np.all(r.p_values <= 1.0), \
+            f"p-values out of [0,1] on {d['name']}"
+
+    def test_serial_parallel_pvalues_close(self, sp, dataset):
+        d = dataset
+        r_s = sp.local_perm_serial(d["z"], d["rows"], d["cols"], d["vals"], d["n"],
+                                    n_perm=N_PERM_PVAL)
+        r_p = sp.local_perm_parallel(d["z"], d["rows"], d["cols"], d["vals"], d["n"],
+                                      n_perm=N_PERM_PVAL)
+        # Mean absolute difference across all observations
+        mean_diff = float(np.mean(np.abs(r_s.p_values - r_p.p_values)))
+        assert mean_diff < 0.05, \
+            f"Local p-values serial/parallel mean diff={mean_diff:.4f} on {d['name']}"
+
+
+# ---------------------------------------------------------------------------
 # w_to_coo interop utility
 # ---------------------------------------------------------------------------
 

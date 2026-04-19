@@ -96,6 +96,18 @@ def _load_lib(dylib_path=None):
     path = dylib_path or os.environ.get("SWIFTGEO_DYLIB") or str(_DEFAULT_DYLIB)
     lib = ctypes.CDLL(str(path))
 
+    # Local Moran's I point estimates — writes n doubles
+    fn = lib.swiftgeo_local_moran_i
+    fn.restype  = None
+    fn.argtypes = _WEIGHT_ARGS + [_dbl_p]
+
+    # Local permutation tests — writes n observed + n p-values + elapsed + nthreads
+    for name in ("swiftgeo_local_perm_serial", "swiftgeo_local_perm_parallel"):
+        fn = getattr(lib, name)
+        fn.restype  = None
+        fn.argtypes = _WEIGHT_ARGS + [ctypes.c_int32, ctypes.c_uint64,
+                                       _dbl_p, _dbl_p, _dbl_p, _i32_p]
+
     # Spatial lag (serial + parallel) — output buffer instead of scalar
     for name in ("swiftgeo_spatial_lag", "swiftgeo_spatial_lag_parallel"):
         fn = getattr(lib, name)
@@ -124,6 +136,14 @@ def _load_lib(dylib_path=None):
 
     _lib = lib
     return lib
+
+
+@dataclass
+class LocalPermResult:
+    observed: np.ndarray        # shape (n,), float64 — local Moran's I values
+    p_values: np.ndarray        # shape (n,), float64 — two-sided p-values
+    elapsed_seconds: float
+    n_threads: int
 
 
 @dataclass
@@ -169,6 +189,40 @@ class SwiftPerm:
             ctypes.byref(el),  ctypes.byref(nt),
         )
         return PermResult(obs.value, null, pv.value, el.value, nt.value)
+
+    def local_moran_i(self, z, rows, cols, vals, n) -> np.ndarray:
+        """Point estimates: returns array of n local Moran's I values."""
+        z_c, rows_c, cols_c, vals_c = self._prep(z, rows, cols, vals)
+        out = np.empty(n, dtype=np.float64)
+        self._lib.swiftgeo_local_moran_i(
+            *self._weight_args(z_c, rows_c, cols_c, vals_c, n),
+            out.ctypes.data_as(_dbl_p),
+        )
+        return out
+
+    def _call_local(self, fn, z, rows, cols, vals, n, n_perm, seed):
+        z_c, rows_c, cols_c, vals_c = self._prep(z, rows, cols, vals)
+        observed = np.empty(n, dtype=np.float64)
+        p_values = np.empty(n, dtype=np.float64)
+        el, nt   = ctypes.c_double(), ctypes.c_int32()
+        fn(
+            *self._weight_args(z_c, rows_c, cols_c, vals_c, n),
+            ctypes.c_int32(n_perm), ctypes.c_uint64(seed),
+            observed.ctypes.data_as(_dbl_p),
+            p_values.ctypes.data_as(_dbl_p),
+            ctypes.byref(el), ctypes.byref(nt),
+        )
+        return LocalPermResult(observed, p_values, el.value, nt.value)
+
+    def local_perm_serial(self, z, rows, cols, vals, n,
+                          n_perm=9999, seed=12345) -> LocalPermResult:
+        return self._call_local(self._lib.swiftgeo_local_perm_serial,
+                                z, rows, cols, vals, n, n_perm, seed)
+
+    def local_perm_parallel(self, z, rows, cols, vals, n,
+                            n_perm=9999, seed=12345) -> LocalPermResult:
+        return self._call_local(self._lib.swiftgeo_local_perm_parallel,
+                                z, rows, cols, vals, n, n_perm, seed)
 
     def spatial_lag(self, y, rows, cols, vals, n, parallel=True) -> np.ndarray:
         """Compute the spatial lag W·y.
